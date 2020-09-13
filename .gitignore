@@ -1,0 +1,4 @@
+__pycache__
+*.pyc
+gp_toolbox_updater
+gp_toolbox_updater/GP_toolbox_updater_status.json
