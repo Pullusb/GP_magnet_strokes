@@ -2,11 +2,11 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (0, 2, 0),
+    "version": (1, 0, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
-    "warning": "This addon is still in development.",
-    "doc_url": "",
+    "warning": "This an early alpha, still in development",
+    "doc_url": "https://github.com/Pullusb/GP_magnet_strokes",
     "category": "Object" }
 
 
@@ -113,11 +113,11 @@ def draw_callback_px(self, context):
 
 """
 
-class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
+class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
     """Magnet fill strokes to line stroke"""
-    bl_idname = "gp.magnet_fill_to_line"
-    bl_label = "Magnet Fill"
-    bl_description = "Try to magnet fill lines to closest drawing lines"
+    bl_idname = "gp.magnet_lines"
+    bl_label = "Magnet gp lines"
+    bl_description = "Try to magnet grease pencil stroke to closest stroke in other layers"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -278,34 +278,31 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
         # context.window_manager.event_timer_remove(self.draw_event)
         
         ## Remove draw handler (if there was any)
-        
         # bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
 
 
     def invoke(self, context, event):
         self.report({'INFO'}, "Magnet On")
-
+        settings = context.scene.gp_magnetools
         ## stop if not in perspective view
         if not context.area.spaces[0].region_3d.is_perspective:
             self.report({'ERROR'}, "You are in Orthographic view ! (generate imprecision)\n(press 5 on your numpad to toggle perspective view)")
             return {'CANCELLED'}
 
         ## rules
-        select_mask = False
-        target_line_only = True
-        source_fill_only = False
+        select_mask = settings.mgnt_select_mask
+        target_line_only = settings.mgnt_target_line_only
+        #source_fill_only = False
 
         ## initialise
-        start_init = time()
+        start_init = time()#Dbg-time
         
         ## get material to target (with selection switch if needed)
         ## Get all 2D point position of targeted lines
         
-        material_targets = [name.lower().strip(' ,') for name in context.scene.gp_magnet_targets.split(',')]
+        material_targets = [name.lower().strip(' ,') for name in settings.mgnt_material_targets.split(',')]
         while("" in material_targets) :
             material_targets.remove("") 
-        print('material_targets: ', material_targets)
-            
         
         mat_ids = []
 
@@ -316,7 +313,7 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
                 mat_ids.append(i)
 
         if material_targets and not mat_ids:# No target found
-            self.report({'ERROR'}, f"No material target found from in list {context.scene.gp_magnet_targets} (analysed as {'|'.join(material_targets)})\nChange targets names or leave field empty to target all materials")
+            self.report({'ERROR'}, f"No material target found from in list {settings.mgnt_material_targets} (analysed as {'|'.join(material_targets)})\nChange targets names or leave field empty to target all materials")
             return {'CANCELLED'}
         
         # self.target_points = []
@@ -339,12 +336,12 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
                     continue
                 
                 ## Get all type except fills
-                # if target_line_only and materials[s.material_index].grease_pencil.show_fill:
-                #     continue
+                if target_line_only and materials[s.material_index].grease_pencil.show_fill:
+                    continue
                 
                 ## work only on selected strokes from other layers (usefull to magnet on specific strokes)
-                # if select_mask and s.select:
-                #     continue
+                if select_mask and not s.select:
+                    continue
 
                 self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
 
@@ -355,7 +352,7 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
                 #     self.target_2d_co.append(location_to_region(self.matworld @ p.co))
        
 
-        print(f'End target line infos get: {time() - start_init:.4f}s')
+        # print(f'End target line infos get: {time() - start_init:.4f}s')#Dbg-time
         if not self.target_strokes:
             self.report({'ERROR'}, "No target strokes found")
             return {'CANCELLED'}
@@ -390,7 +387,7 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
 
         # use depth of first point to reproject on this depth
         self.depth = self.org_pos[0]
-        print(f'End init: {time() - start_init:.4f}s')
+        print(f'Magnet init: {time() - start_init:.4f}s')#Dbg-time
 
         ## Add the region OpenGL drawing callback (only if drawing is needed)
         ## draw in view space with 'POST_VIEW' and 'PRE_VIEW'
@@ -405,9 +402,9 @@ class GPMGT_OT_magnet_fill_to_lines(bpy.types.Operator):
         self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
         
         ## Starts the modal
-        display_text = 'Magnet mode'
+        display_text = 'Magnet mode | Valid: Left Clic, Space, Enter | Cancel: Right Clic, Escape |'
         if material_targets and mat_ids:
-            display_text += f' - Target materials: "{"|".join(material_targets)}"'
+            display_text += f' Target materials: "{"|".join(material_targets)}"'
 
         context.area.header_text_set(display_text)
         context.window_manager.modal_handler_add(self)
@@ -420,12 +417,23 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "Gpencil"
 
-    bpy.types.Scene.gp_magnet_targets = bpy.props.StringProperty(name="magnet targets", description="List of magnet target material (coma separated names, not case sensitive)\n(e.g: 'line,Solid Black,fx')\nLeave empty to target all lines", default="")# update=None, get=None, set=None
-
     def draw(self, context):
         layout = self.layout
-        layout.prop(context.scene, 'gp_magnet_targets')
-        layout.operator('gp.magnet_fill_to_line')
+        layout.prop(context.scene.gp_magnetools, 'mgnt_material_targets')
+        layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
+        layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
+        layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
+
+class MGNT_PGT_settings(bpy.types.PropertyGroup) :
+    mgnt_material_targets = bpy.props.StringProperty(
+        name="Materials", description="Filter list of targeted materials for the magnet (coma separated names, not case sensitive)\n(e.g: 'line,Solid Black,fx')\nLeave empty to target all lines", default="")# update=None, get=None, set=None
+    
+    mgnt_select_mask : bpy.props.BoolProperty(
+        name="Magnet on selection", description="Snap only on selected lines (Drascitally improve performances)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
+
+    mgnt_target_line_only : bpy.props.BoolProperty(
+        name="Target line only", description="Avoid line that have a Fill material", default=True, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
+
 
 addon_keymaps = []
 def register_keymaps():
@@ -435,7 +443,7 @@ def register_keymaps():
     
     # kmi = km.keymap_items.new(
     #     name="Magnet fill",
-    #     idname="gp.magnet_fill_to_line",
+    #     idname="gp.magnet_lines",
     #     type="F",
     #     value="PRESS",
     #     shift=True,
@@ -443,7 +451,7 @@ def register_keymaps():
     #     alt = False,
     #     oskey=False
     #     )
-    km.keymap_items.new('gp.magnet_fill_to_line', type='F5', value='PRESS')
+    km.keymap_items.new('gp.magnet_lines', type='F5', value='PRESS')
 
 
     addon_keymaps.append(km)
@@ -459,23 +467,24 @@ def unregister_keymaps():
 ### --- REGISTER ---
 
 classes=(
-GPMGT_OT_magnet_fill_to_lines,
+MGNT_PGT_settings,
+GPMGT_OT_magnet_gp_lines,
 GPMGT_PT_magnet_panel,
 )
 
 def register():
-    # bpy.utils.register_class(GPMGT_OT_magnet_fill_to_lines)
     for cls in classes:
         bpy.utils.register_class(cls)
     # if not bpy.app.background:
     register_keymaps()
+    bpy.types.Scene.gp_magnetools = bpy.props.PointerProperty(type = MGNT_PGT_settings)
 
 def unregister():
     # if not bpy.app.background:
     unregister_keymaps()
-    # bpy.utils.unregister_class(GPMGT_OT_magnet_fill_to_lines)
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
+    del bpy.types.Scene.gp_magnetools
 
 if __name__ == "__main__":
     register()
