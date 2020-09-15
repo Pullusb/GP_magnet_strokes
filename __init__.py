@@ -556,7 +556,6 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
         layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
         layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
         layout.prop(context.scene.gp_magnetools, 'mgnt_tolerance')
-        # layout.prop(context.scene.gp_magnetools, 'mgnt_enable_sticky_mode')
 
         layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
 
@@ -569,9 +568,6 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
 
     mgnt_target_line_only : bpy.props.BoolProperty(
         name="Target line only", description="Avoid line that have a Fill material", default=True, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
-    
-    # mgnt_enable_sticky_mode : bpy.props.BoolProperty(
-        # name="Stick to lines", description="Avoid line that have a Fill material", default=True, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
 
     mgnt_tolerance : bpy.props.IntProperty(
         name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=10, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
