@@ -32,7 +32,6 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
-- Proximity Tolerance
 - Autoclean overlapping output points locations
 - authorize snapping on the same layer as option
 - Brush mode... (complex, maybe on another version)
@@ -42,7 +41,14 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
-1.0.0
+1.1.0:
+
+- Correct end points depth (raycast on chosen drawing plane)
+- handle distance: Proximity magnet with tolerance value
+- lock magneted points with Ctrl (while moving)
+
+
+1.0.0:
 
 - Expose filter (multiple filtering type)
 
