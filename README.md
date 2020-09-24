@@ -32,14 +32,21 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
-- Autoclean overlapping output points locations
 - authorize snapping on the same layer as option
 - Brush mode... (complex, maybe on another version)
 -  -->
 
+<!-- ## Done
+- Autoclean overlapping output points locations -->
+
 ---
 
 ## Changelog:
+
+1.2.0:
+
+- Cleanup : Overlapping output points doubles deleted
+- Point magnet mode: snap directly on points instead of lines, added as an option, off by default  
 
 1.1.0:
 

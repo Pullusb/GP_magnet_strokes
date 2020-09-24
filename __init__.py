@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "This an early alpha, still in development",
@@ -257,6 +257,51 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             else:# keep following cursor
                 self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
+    def compute_point_proximity_sticky_magnet(self, context, stick=False):
+        '''Sticky version to point directly'''
+        for j, mp in enumerate(self.pos_2d):
+            prevdist = 10000
+            res = None
+            
+            for stroke_pts in self.target_strokes:
+                for i, pos in enumerate(stroke_pts):
+                    ## check distance against previous
+                    dist = vector_length_2d(pos, mp)
+                    if dist < prevdist:
+                        res = pos
+                        prevdist = dist
+
+            if self.sticked[j]: # use sticked coord
+                self.mv_points[j].co = self.sticked[j]
+
+            elif prevdist <= self.tolerance:# magnet
+                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)# res is 2d, need 3d coord
+                if stick: #via event.ctrl
+                    self.sticked[j] = self.matworld.inverted() @ region_to_location(res, self.depth)
+
+            else:# keep following cursor
+                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+
+    def autoclean(self, context):
+        ct = 0
+        # passed_coords = [] # here means point overlap check across strokes...
+        for s in reversed([s for s in context.object.data.layers.active.active_frame.strokes if s.select]):
+            passed_coords = []# per stroke analysis
+            double_list = []
+            for i, p in enumerate(s.points):
+                if not p.select or not p in self.mv_points:
+                    continue
+                if p.co in passed_coords:
+                    double_list.append(i)
+                    continue
+                passed_coords.append(p.co)
+                        
+            for i in reversed(double_list):
+                s.points.pop(index=i)
+            ct += len(double_list)
+        
+        if ct:
+            print(f'Deleted {ct} overlapping points')
 
     def modal(self, context, event):
         # context.area.tag_redraw()
@@ -275,8 +320,11 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
             self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d]
 
-            # self.compute_proximity_magnet(context)
-            self.compute_proximity_sticky_magnet(context, stick=event.ctrl)
+            # self.compute_proximity_magnet(context)# on line
+            if self.point_snap:
+                self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
+            else:
+                self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
             
             # ## Store mouse position in a variable
             
@@ -365,21 +413,9 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
                 
 
-            ## TODO autoclean overlapping vertices
+            ## autoclean overlapping vertices
             ## ugly method
-            
-            """ passed_coords = []
-            for s in reversed([s for s in context.object.data.layers.active.active_frame.strokes if s.select])
-                for i, p in enumerate(reversed(s.points)):
-                    if p in self.mv_points:## check if that works
-                        print('found')
-                        idx = len(s.points)+1 - i
-                        if p.co in passed_coords:
-                            print('idx: ', idx)
-                            s.points.pop(index=idx)
-                        else:
-                            passed_coords.append(p.co) """
-            
+            self.autoclean(context)
 
             self.report({'INFO'}, "Magnet applyed")
             return {'FINISHED'}
@@ -418,6 +454,7 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
 
         ## rules
         self.tolerance = settings.mgnt_tolerance
+        self.point_snap = settings.mgnt_snap_to_points
         select_mask = settings.mgnt_select_mask
         target_line_only = settings.mgnt_target_line_only
         #source_fill_only = False
@@ -489,7 +526,7 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             return {'CANCELLED'}
 
         ## store moving points
-        # TODO mode to wrok on last stroke
+        # TODO mode to work on last stroke
         org_strokes = [s for s in gpl.active.active_frame.strokes if s.select]
         
         self.mv_points = []
@@ -555,6 +592,7 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
         layout.prop(context.scene.gp_magnetools, 'mgnt_material_targets')
         layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
         layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
+        layout.prop(context.scene.gp_magnetools, 'mgnt_snap_to_points')
         layout.prop(context.scene.gp_magnetools, 'mgnt_tolerance')
 
         layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
@@ -564,10 +602,13 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
         name="Materials", description="Filter list of targeted materials for the magnet (coma separated names, not case sensitive)\n(e.g: 'line,Solid Black,fx')\nLeave empty to target all lines", default="")# update=None, get=None, set=None
     
     mgnt_select_mask : bpy.props.BoolProperty(
-        name="Magnet on selection", description="Snap only on selected lines (Drascitally improve performances)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
+        name="Magnet on selection", description="Snap only on selected lines (Drastically improve performances by reducing target to evaluate)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
 
     mgnt_target_line_only : bpy.props.BoolProperty(
         name="Target line only", description="Avoid line that have a Fill material", default=True, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
+    
+    mgnt_snap_to_points : bpy.props.BoolProperty(
+        name="Snap to points", description="Snap on points instead of lines (Better performance)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
 
     mgnt_tolerance : bpy.props.IntProperty(
         name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=10, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
