@@ -32,6 +32,8 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
+- resample on the fly
+- resample shortcut ?
 - authorize snapping on the same layer as option
 - Brush mode... (complex, maybe on another version)
 -  -->
@@ -42,6 +44,10 @@ Shortcut to trigger (temporary) : `F5`
 ---
 
 ## Changelog:
+
+1.2.1:
+
+- fix: view plane normal projection in VIEW orientation mode
 
 1.2.0:
 

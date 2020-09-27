@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 2, 0),
+    "version": (1, 2, 1),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "This an early alpha, still in development",
@@ -62,8 +62,8 @@ def get_gp_draw_plane(context):
     of the curent drawing accordign to geometry'''
 
     settings = context.scene.tool_settings
-    orient = settings.gpencil_sculpt.lock_axis#'VIEW', 'AXIS_Y', 'AXIS_X', 'AXIS_Z', 'CURSOR'
-    loc = settings.gpencil_stroke_placement_view3d#'ORIGIN', 'CURSOR', 'SURFACE', 'STROKE'
+    orient = settings.gpencil_sculpt.lock_axis# 'VIEW', 'AXIS_Y', 'AXIS_X', 'AXIS_Z', 'CURSOR'
+    loc = settings.gpencil_stroke_placement_view3d# 'ORIGIN', 'CURSOR', 'SURFACE', 'STROKE'
     mat = context.object.matrix_world if context.object else None
     # -> placement
     if loc == "CURSOR":
@@ -77,8 +77,14 @@ def get_gp_draw_plane(context):
 
     # -> orientation
     if orient == 'VIEW':
-        #only depth is important, no need to get view vector
-        plane_no = None
+        plane_no = context.space_data.region_3d.view_rotation @ Vector((0,0,1))
+        ## create vector, then rotate by view quaternion
+        # plane_no = Vector((0,0,1))
+        # plane_no.rotate(context.space_data.region_3d.view_rotation)
+        
+        ## only depth is important, can return None so region to location use same depth
+        # plane_no = None
+
 
     elif orient == 'AXIS_Y':#front (X-Z)
         plane_no = Vector((0,1,0))
@@ -400,18 +406,17 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             self.stop_modal(context)
             
             ## depth correction
-            view_co = bpy.context.space_data.region_3d.view_matrix.inverted().translation
+            
             for i, p in enumerate(self.mv_points):
                 ## 1-> reattribute original depth (Pretty much always bad since point has translated in persp... return jaggy lines)
                 # p.co = self.matworld.inverted() @ region_to_location( location_to_region(self.matworld @ p.co), self.matworld @ self.org_pos[i] )# use org loc as depth
                 
                 ## 2-> use raycast on old points (must be bad too...) ## intersect_line_plane(line_a, line_b, plane_co, plane_no, no_flip=False) 
-                # plane_no = self.matworld @ p.co - view_co
-                # p.co = mathutils.geometry.intersect_line_plane(view_co, self.matworld @ p.co, self.matworld @ self.org_pos[i], plane_no)#, no_flip=False
+                # plane_no = self.matworld @ p.co - slef.view_co
+                # p.co = mathutils.geometry.intersect_line_plane(slef.view_co, self.matworld @ p.co, self.matworld @ self.org_pos[i], plane_no)#, no_flip=False
 
                 ## 3-> raycast on drawplane
-                p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
-                
+                p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
 
             ## autoclean overlapping vertices
             ## ugly method
@@ -462,9 +467,14 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         ## initialise
         start_init = time()#Dbg-time
         
-        ## get projection plane (to reproject upon confirm)
-        self.plane_co, self.plane_no = get_gp_draw_plane(context)
 
+        ## resample on the fly - BUT select all the line... (kill selection) add it as separate.
+        # bpy.ops.gpencil.stroke_sample(length=0.04)
+
+
+        ## get projection plane (to reproject upon confirm)
+        self.view_co = context.space_data.region_3d.view_matrix.inverted().translation
+        self.plane_co, self.plane_no = get_gp_draw_plane(context)
         
         ## get material to target (with selection switch if needed)
         material_targets = [name.lower().strip(' ,') for name in settings.mgnt_material_targets.split(',')]
