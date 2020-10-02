@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 2, 1),
+    "version": (1, 3, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "This an early alpha, still in development",
@@ -25,6 +25,11 @@ import bgl
 import blf
 from gpu_extras.batch import batch_for_shader
 
+
+def get_last_index(context=None):
+    if not context:
+        context = bpy.context
+    return 0 if context.tool_settings.use_gpencil_draw_onback else -1
 
 # -----------------
 ### Vector utils 2d
@@ -536,21 +541,21 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             return {'CANCELLED'}
 
         ## store moving points
-        # TODO mode to work on last stroke
-        org_strokes = [s for s in gpl.active.active_frame.strokes if s.select]
-        
         self.mv_points = []
-        for s in org_strokes:
+        # Work on last stroke hwne in paint mode
+        if context.mode == 'PAINT_GPENCIL':
+            self.mv_points = [p for p in gpl.active.active_frame.strokes[get_last_index(context)].points]
+        else:
+            org_strokes = [s for s in gpl.active.active_frame.strokes if s.select]
 
-            ## source stroke filter
-            # if source_fill_only and not materials[s.material_index].grease_pencil.show_fill:# negative authorize double (fill + line)
-            #     continue
-            
-
-            for p in s.points:
-                if not p.select:
-                    continue
-                self.mv_points.append(p)
+            for s in org_strokes:
+                ## source stroke filter
+                # if source_fill_only and not materials[s.material_index].grease_pencil.show_fill:# negative authorize double (fill + line)
+                #     continue
+                for p in s.points:
+                    if not p.select:
+                        continue
+                    self.mv_points.append(p)
 
         ## error handling
         if not self.mv_points:

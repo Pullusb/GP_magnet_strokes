@@ -14,6 +14,10 @@ Magnet selected Grease pencil points to lines on other layers
 
 This was made for magneting fill strokes (in dedicated color layer) on line strokes living on other layers.
 
+Source scope:
+    - Paint mode : last stroke only
+    - Edit mode : Selected points (On active layer only !)
+
 How to use:  
 
 Use a shortcut magnet selected lines on active layers on lines of other layers
@@ -44,6 +48,10 @@ Shortcut to trigger (temporary) : `F5`
 ---
 
 ## Changelog:
+
+1.3.0:
+
+- feat: work directly on last stroke in paint mode
 
 1.2.1:
 
