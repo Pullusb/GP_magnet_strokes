@@ -49,6 +49,10 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
+1.4.0:
+
+- feat: new _brush_ magnet mode
+
 1.3.0:
 
 - feat: work directly on last stroke in paint mode

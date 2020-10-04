@@ -1,140 +1,74 @@
-bl_info = {
-    "name": "GP magnet strokes",
-    "description": "Magnet a fill stroke on a line with designated material",
-    "author": "Samuel Bernou",
-    "version": (1, 3, 0),
-    "blender": (2, 83, 0),
-    "location": "View3D",
-    "warning": "This an early alpha, still in development",
-    "doc_url": "https://github.com/Pullusb/GP_magnet_strokes",
-    "category": "Object" }
+from .__init__ import *
 
-from . import brush_magnet
-
-import bpy, os
-import numpy as np
-import mathutils
-from mathutils import Vector
+import bpy
+from mathutils import Vector, Matrix
+from mathutils import geometry
+import math
 from math import sqrt
-from sys import platform
-import subprocess
-from time import time#Dbg-time
 
-## modal import
+import numpy as np
 import gpu
 import bgl
 import blf
+
+from time import time
+from bpy_extras import view3d_utils
 from gpu_extras.batch import batch_for_shader
+from gpu_extras.presets import draw_circle_2d
 
 
-def get_last_index(context=None):
-    if not context:
-        context = bpy.context
-    return 0 if context.tool_settings.use_gpencil_draw_onback else -1
+def circle_2d(coord, r, num_segments):
+    '''create circle, ref: http://slabode.exofire.net/circle_draw.shtml'''
+    cx, cy = coord
+    points = []
+    theta = 2 * 3.1415926 / num_segments
+    c = math.cos(theta) #precalculate the sine and cosine
+    s = math.sin(theta)
+    x = r # we start at angle = 0
+    y = 0
+    for i in range(num_segments):
+        #bgl.glVertex2f(x + cx, y + cy) # output vertex
+        points.append((x + cx, y + cy))
+        # apply the rotation matrix
+        t = x
+        x = c * x - s * y
+        y = s * t + c * y
 
-# -----------------
-### Vector utils 2d
-# -----------------
+    return points
 
-def location_to_region(worldcoords):
-    from bpy_extras import view3d_utils
-    return view3d_utils.location_3d_to_region_2d(bpy.context.region, bpy.context.space_data.region_3d, worldcoords)
-
-def region_to_location(viewcoords, depthcoords):
-    from bpy_extras import view3d_utils
-    return view3d_utils.region_2d_to_location_3d(bpy.context.region, bpy.context.space_data.region_3d, viewcoords, depthcoords)
-
-# unused
-def single_vector_length_2d(v):
-    return sqrt((v[0] * v[0]) + (v[1] * v[1]))
-
-def vector_length_2d(A,B):
-    ''''take two Vector and return length'''
-    return sqrt((A[0] - B[0])**2 + (A[1] - B[1])**2)
-
-# unused
-def closest_point_on_line_next_to_point(p1, p2, p3):
-    '''return closest point to p3 on the segement represented by p1-p2 '''
-    x1, y1 = p1
-    x2, y2 = p2
-    x3, y3 = p3
-    dx, dy = x2-x1, y2-y1
-    det = dx*dx + dy*dy
-    a = (dy*(y3-y1)+dx*(x3-x1))/det
-    return x1+a*dx, y1+a*dy
-
-def get_gp_draw_plane(context):
-    ''' return tuple with plane coordinate and normal
-    of the curent drawing accordign to geometry'''
-
-    settings = context.scene.tool_settings
-    orient = settings.gpencil_sculpt.lock_axis# 'VIEW', 'AXIS_Y', 'AXIS_X', 'AXIS_Z', 'CURSOR'
-    loc = settings.gpencil_stroke_placement_view3d# 'ORIGIN', 'CURSOR', 'SURFACE', 'STROKE'
-    mat = context.object.matrix_world if context.object else None
-    # -> placement
-    if loc == "CURSOR":
-        plane_co = context.scene.cursor.location
-    else:#ORIGIN (also on origin if set to 'SURFACE', 'STROKE')
-        if not context.object:
-            plane_co = None
-        else:
-            plane_co = context.object.matrix_world.to_translation()# context.object.location
-
-
-    # -> orientation
-    if orient == 'VIEW':
-        plane_no = context.space_data.region_3d.view_rotation @ Vector((0,0,1))
-        ## create vector, then rotate by view quaternion
-        # plane_no = Vector((0,0,1))
-        # plane_no.rotate(context.space_data.region_3d.view_rotation)
-        
-        ## only depth is important, can return None so region to location use same depth
-        # plane_no = None
-
-
-    elif orient == 'AXIS_Y':#front (X-Z)
-        plane_no = Vector((0,1,0))
-        plane_no.rotate(mat)
-
-    elif orient == 'AXIS_X':#side (Y-Z)
-        plane_no = Vector((1,0,0))
-        plane_no.rotate(mat)
-
-    elif orient == 'AXIS_Z':#top (X-Y)
-        plane_no = Vector((0,0,1))
-        plane_no.rotate(mat)
-
-    elif orient == 'CURSOR':
-        plane_no = Vector((0,0,1))
-        plane_no.rotate(context.scene.cursor.matrix)
-    
-    return plane_co, plane_no
-
-## TODO
-### use points only ( brute force or with a kd_tree) ?
-# test a mode with points only (need to fuse overlapping strokes (if those are adjacent strokes ?))
-# Test in a modal operator, use a draw handler to show initial position to target position (As debug tool...)
-
-
-
-### ---- Modal operator
-
-
-# Simple exemple of event keypress handling and basic draw in modal ops with detection of ctrl/alt/shift modifiers
-# from gpu_extras.presets import draw_circle_2d
-"""
 def draw_callback_px(self, context):
-    '''Draw callback use by modal to draw in viewport'''
-    ## lines and shaders
+    scn = context.scene
+    full_radius = scn.gp_magnetools.mgnt_radius
     # 50% alpha, 2 pixel width line
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')#initiate shader
+    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glLineWidth(2)
 
-    # Draw line showing mouse path
+    # paint
+    """
+    batch = batch_for_shader(shader, 'TRIS', {"pos": self.vertices}, indices=self.indices)
+    shader.bind()
+    shader.uniform_float("color", self.paint_color)#indigo (0, 0.5, 0.5, 1.0)
+    batch.draw(shader)
+    """
+
+    '''
+    #draw debug line showing mouse path
     batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": self.mouse_path})
     shader.bind()
     shader.uniform_float("color", (0.5, 0.5, 0.5, 0.5))#grey-light
+    batch.draw(shader)
+    '''
+
+    #paint widget
+    #paint_widget = Point(self.mouse).buffer(scn.GPS_radius, 2)#shapely mode !
+    
+    paint_widget = circle_2d(self.mouse, self.pen_radius, self.crosshair_resolution)#optimisation ?
+    paint_widget.append(paint_widget[0])#re-insert last coord to close the circle
+
+    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": paint_widget})
+    shader.bind()
+    shader.uniform_float("color", (0.6, 0.0, 0.0, 0.5))#red-light
     batch.draw(shader)
 
     # restore opengl defaults
@@ -144,31 +78,24 @@ def draw_callback_px(self, context):
     ## text
     font_id = 0
 
-    ## Show active modifier key (not necessary if you need performance)
-    if self.pressed_alt or self.pressed_shift or self.pressed_ctrl:
-        # print(f'mods: alt {self.pressed_alt} - shift {self.pressed_shift} - ctrl {self.pressed_ctrl}')
-        blf.position(font_id, self.mouse[0]+10, self.mouse[1]+10, 0)
-        blf.size(font_id, 30, 72)#Id, Point size of the font, dots per inch value to use for drawing.
-        if self.pressed_alt and self.pressed_shift:
-            blf.draw(font_id, 'x')
-        elif self.pressed_alt:
-            blf.draw(font_id, '-')
-        elif self.pressed_shift:
-            blf.draw(font_id, '+')
-        elif self.pressed_ctrl:
-            blf.draw(font_id, 'o')
+    ## show active modifier
+    # if self.pressed_alt or self.pressed_shift:
+    #     blf.position(font_id, self.mouse[0]+full_radius, self.mouse[1]+full_radius, 0)
+    #     blf.size(font_id, 15, 72)
+    #     if self.pressed_alt:
+    #         blf.draw(font_id, '-')
+    #     else:
+    #         blf.draw(font_id, '+')
 
-    ## Draw text debug infos
+    ## draw text debug infos
     blf.position(font_id, 15, 30, 0)
     blf.size(font_id, 20, 72)
-    blf.draw(font_id, f'Infos - mouse coord: {self.mouse} - mouse_steps: {len(self.mouse_path)}')
+    blf.draw(font_id, f'Magnet Brush - radius: {full_radius}')
 
-"""
-
-class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
-    """Magnet fill strokes to line stroke"""
-    bl_idname = "gp.magnet_lines"
-    bl_label = "Magnet gp lines"
+class GPMGT_OT_magnet_brush(bpy.types.Operator):
+    """Magnet fill strokes to line stroke with a brush"""
+    bl_idname = "gp.magnet_brush"
+    bl_label = "Magnet Brush"
     bl_description = "Try to magnet grease pencil stroke to closest stroke in other layers"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -177,30 +104,6 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         return context.object is not None and context.object.type == 'GPENCIL'
 
     pressed_key = 'NOTHING'
-
-    def compute_magnet(self, context):
-        '''Basic magnet (slightly faster cause less condition)'''
-
-        for j, mp in enumerate(self.pos_2d):
-            prevdist = 10000
-            res = None
-
-            for stroke_pts in self.target_strokes:
-                for i in range(len(stroke_pts)-1):
-                    pos, percentage = mathutils.geometry.intersect_point_line(mp, stroke_pts[i], stroke_pts[i+1])
-
-                    if percentage <= 0:#head
-                        pos = stroke_pts[i]
-                    elif 1 <= percentage:#tail
-                        pos = stroke_pts[i+1]
-
-                    ## check distance against previous
-                    dist = vector_length_2d(pos, mp)
-                    if dist < prevdist:
-                        res = pos
-                        prevdist = dist
-
-            self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
 
     def compute_proximity_magnet(self, context):
         # self.target_strokes # list of pointlists 2d [[p,p][p,p,p]]
@@ -316,80 +219,72 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             print(f'Deleted {ct} overlapping points')
 
     def modal(self, context, event):
-        # context.area.tag_redraw()
+        context.area.tag_redraw()
 
         ### /TESTER - keycode printer (flood console but usefull to know a keycode name)
         # if event.type not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:#avoid flood of mouse move.
             # print('key:', event.type, 'value:', event.value)
         ###  TESTER/
 
+        #handle the continuous press
+        if event.type == 'LEFTMOUSE' :
+            # if event.value == 'PRESS':
+            self.pressed_key = 'LEFTMOUSE'
+            #while pushed, variable pressed stay on...
+            if event.value == 'RELEASE':
+                #if release, stop and do the thing !
+                self.pressed_key = 'NOTHING'
+                #reset mouse prev to avoid jump in hyper space of the points
+                self.mouse_prev = None
 
         ## Get mouse move
         if event.type in {'MOUSEMOVE'}:
+            self.mouse = Vector((event.mouse_region_x, event.mouse_region_y))
             # INBETWEEN_MOUSEMOVE : Mouse sub-moves when too fast and need precision to get higher resolution sample in coordinate.
-            ## update by mouse moves ! 
-            self.mouse = (event.mouse_region_x, event.mouse_region_y)
-            ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
-            self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d]
+            ## update by mouse moves !
+            if self.pressed_key == 'LEFTMOUSE':
+                if not self.mouse_prev:
+                    self.mouse_prev = self.mouse
+                    self.radius_prev = self.pen_radius
+                
+                else:
+                    self.pen_radius = int(context.scene.gp_magnetools.mgnt_radius * event.pressure)
+                    #debug pressure
+                    # print('pression', event.pressure, '-> self.pen_radius: ', self.pen_radius)
 
-            # self.compute_proximity_magnet(context)# on line
-            if self.point_snap:
-                self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
-            else:
-                self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
+                    if self.pen_radius < 1:
+                        self.pen_radius = 1
+                    ## Permanent move from initial position
+                    # ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
+                    # self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d]
+
+                    ## updating position if points are taken inside radius
+                    ms_delta = Vector((self.mouse[0] - self.mouse_prev[0], self.mouse[1] - self.mouse_prev[1]))
+                    
+                    ## bring points if they are in the radius of the coordsmouse
+                    for i, pos in enumerate(self.pos_2d):
+                        if (pos - self.mouse_prev).length > self.radius_prev:
+                            continue
+                        # TODO Check if possiblea to make a falloff (linear to start)
+                        # with percentage of the length to max as a reduction to mouse delta (will slowdown stuff...)
+                        self.pos_2d[i] = pos + ms_delta
+                    
+                    ## store prev for next action
+                    self.mouse_prev = self.mouse
+                    self.radius_prev = self.pen_radius
+                    
+                    # self.compute_proximity_magnet(context)# on line
+                    if self.point_snap:
+                        self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
+                    else:
+                        self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
             
             # ## Store mouse position in a variable
             
             # ## Store mouse path in a list (only if left click is pressed)
             # if self.pressed_key == 'LEFTMOUSE':# This is evaluated as a continuous press
-            #     # self.mouse_path.append((event.mouse_region_x, event.mouse_region_y))
+            #     # self.mouse_paVector(th.app)end((event.mouse_region_x, event.mouse_region_y))
             #     pass
-
-        '''
-        ### /CONTINUOUS PRESS
-        if event.type == 'LEFTMOUSE':
-            self.pressed_key = 'LEFTMOUSE'
-            ## While pushed, variable pressed stay on
-            
-            if event.value == 'RELEASE':
-                # print('Action on release')#Dbg
-
-                #if release, stop continuous press and do the thing !
-                # Reset the key
-                self.pressed_key = 'NOTHING'
-                
-                ## if needed, add UNDO STEP push before doing the clicked action (usefull for drawing strokes)
-                # bpy.ops.ed.undo_push()
-
-                # if skip_condition :
-                #     self.pressed_key = 'NOTHING'# reset pressed_key state
-                #     return {'RUNNING_MODAL'}
-
-                # if stop_condition:
-                #     # self.report({'ERROR'}, 'Error message for you, dear user')
-                #     return {'CANCELLED'}
-
-                ## Do things according to modifier detected (on release here) Put combo longest key combo first
-        
-
-        if self.pressed_key == 'LEFTMOUSE':# using pressed_key variable
-            ## Code here is continuously triggered during press
-            pass
-        ### CONTINUOUS PRESS/
-
-
-        ## /SINGLE PRESS
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            if self.pressed_ctrl:
-                print('Ctrl + click')
-            else:
-                print('Click')
-            ## Can also finish on click (better do a dedicated exit func if duplicated with abort code)
-            # bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-            # return {'FINISHED'}
-        ## SINGLE PRESS/
-        '''
-
 
         ### KEYBOARD SINGLE PRESS
 
@@ -408,24 +303,14 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 context.area.tag_redraw()
 
         # Valid
-        if event.type in {'RET', 'SPACE', 'LEFTMOUSE'}:
+        if event.type in {'RET', 'SPACE'}:
             self.stop_modal(context)
             
             ## depth correction
-            
             for i, p in enumerate(self.mv_points):
-                ## 1-> reattribute original depth (Pretty much always bad since point has translated in persp... return jaggy lines)
-                # p.co = self.matworld.inverted() @ region_to_location( location_to_region(self.matworld @ p.co), self.matworld @ self.org_pos[i] )# use org loc as depth
-                
-                ## 2-> use raycast on old points (must be bad too...) ## intersect_line_plane(line_a, line_b, plane_co, plane_no, no_flip=False) 
-                # plane_no = self.matworld @ p.co - slef.view_co
-                # p.co = mathutils.geometry.intersect_line_plane(slef.view_co, self.matworld @ p.co, self.matworld @ self.org_pos[i], plane_no)#, no_flip=False
-
-                ## 3-> raycast on drawplane
                 p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
 
             ## autoclean overlapping vertices
-            ## ugly method
             self.autoclean(context)
 
             self.report({'INFO'}, "Magnet applyed")
@@ -446,7 +331,10 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         return {'RUNNING_MODAL'}
 
     def stop_modal(self, context):
+        bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
+        context.area.tag_redraw()
         context.area.header_text_set(None)
+        
         ## Remove timer (if there was any)
         # context.window_manager.event_timer_remove(self.draw_event)
         
@@ -584,112 +472,34 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         # self.draw_event = context.window_manager.event_timer_add(0.1, window=context.window)#Interval in seconds
         
         ## initiate variable to use (ex: mouse coords)
-        self.mouse = (0, 0) # updated tuple of mouse coordinate
+        self.mouse = Vector((0, 0)) # updated tuple of mouse coordinate
+        self.mouse_prev = None # updated tuple of mouse coordinate
         self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
         
         ## Starts the modal
-        display_text = 'Magnet mode | Valid: Left Clic, Space, Enter | Cancel: Right Clic, Escape |'
+        display_text = 'Magnet Brush mode | Valid: Space, Enter | Cancel: Right Click, Escape |'
         if material_targets and mat_ids:
             display_text += f' Target materials: "{"|".join(material_targets)}"'
 
+
+        ## brush settings
+        self.pen_radius = context.scene.gp_magnetools.mgnt_radius#10 # use a scene prop here (or check sculpt radius)
+        self.crosshair_resolution = 16# hardcode for now(4,8,12,16,20...) keep multiple of 4
+
         context.area.header_text_set(display_text)
+        args = (self, context)
+        self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
 
-class GPMGT_PT_magnet_panel(bpy.types.Panel):
-    bl_label = "Magnet line"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Gpencil"
-
-    def draw(self, context):
-        layout = self.layout
-        layout.prop(context.scene.gp_magnetools, 'mgnt_material_targets')
-        layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
-        layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
-        layout.prop(context.scene.gp_magnetools, 'mgnt_snap_to_points')
-        layout.prop(context.scene.gp_magnetools, 'mgnt_tolerance')
-
-        layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
-
-        row = layout.row()
-        row.prop(context.scene.gp_magnetools, 'mgnt_radius')
-        row.operator('gp.magnet_brush', text='Magnet Brush', icon='SNAP_ON')
-
-class MGNT_PGT_settings(bpy.types.PropertyGroup) :
-    mgnt_material_targets : bpy.props.StringProperty(
-        name="Materials", description="Filter list of targeted materials for the magnet (coma separated names, not case sensitive)\n(e.g: 'line,Solid Black,fx')\nLeave empty to target all lines", default="")# update=None, get=None, set=None
-    
-    mgnt_select_mask : bpy.props.BoolProperty(
-        name="Magnet on selection", description="Snap only on selected lines (Drastically improve performances by reducing target to evaluate)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
-
-    mgnt_target_line_only : bpy.props.BoolProperty(
-        name="Target line only", description="Avoid line that have a Fill material", default=True, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
-    
-    mgnt_snap_to_points : bpy.props.BoolProperty(
-        name="Snap to points", description="Snap on points instead of lines (Better performance)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
-
-    mgnt_tolerance : bpy.props.IntProperty(
-        name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=10, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
-    
-    mgnt_radius : bpy.props.IntProperty(name="Radius", 
-    description="Radius of the brush\nUse [/], X/C, numpad -/+ or mousewheel down/up to modify during draw", 
-    default=12, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
-
-addon_keymaps = []
-def register_keymaps():
-    addon = bpy.context.window_manager.keyconfigs.addon
-    # km = addon.keymaps.new(name = "3D View", space_type = "VIEW_3D")
-    km = addon.keymaps.new(name = "Grease Pencil", space_type = "EMPTY", region_type='WINDOW')
-    
-    # kmi = km.keymap_items.new(
-    #     name="Magnet fill",
-    #     idname="gp.magnet_lines",
-    #     type="F",
-    #     value="PRESS",
-    #     shift=True,
-    #     ctrl=True,
-    #     alt = False,
-    #     oskey=False
-    #     )
-    km.keymap_items.new('gp.magnet_lines', type='F5', value='PRESS')
-
-
-    addon_keymaps.append(km)
-
-def unregister_keymaps():
-    wm = bpy.context.window_manager
-    for km in addon_keymaps:
-        for kmi in km.keymap_items:
-            km.keymap_items.remove(kmi)
-        wm.keyconfigs.addon.keymaps.remove(km)
-    addon_keymaps.clear()
-
-### --- REGISTER ---
-
-classes=(
-MGNT_PGT_settings,
-GPMGT_OT_magnet_gp_lines,
-GPMGT_PT_magnet_panel,
-)
-
 def register():
-    brush_magnet.register()
-    for cls in classes:
-        bpy.utils.register_class(cls)
-    
-    # if not bpy.app.background:
-    register_keymaps()
-    bpy.types.Scene.gp_magnetools = bpy.props.PointerProperty(type = MGNT_PGT_settings)
+    bpy.utils.register_class(GPMGT_OT_magnet_brush)
+    # for cls in classes:
+        # bpy.utils.register_class(cls)
+
 
 def unregister():
-    # if not bpy.app.background:
-    unregister_keymaps()
-    brush_magnet.unregister()
-    for cls in reversed(classes):
-        bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.gp_magnetools
-
-if __name__ == "__main__":
-    register()
+    bpy.utils.unregister_class(GPMGT_OT_magnet_brush)
+    # for cls in reversed(classes):
+        # bpy.utils.unregister_class(cls)
