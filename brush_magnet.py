@@ -143,6 +143,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
     def compute_proximity_sticky_magnet(self, context, stick=False):
         '''Sticky version that lock the points magneted once'''
         for j, mp in enumerate(self.pos_2d):
+            if not j in self.id_changed: continue## Not optimised
             prevdist = 10000
             res = None
             
@@ -175,6 +176,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
     def compute_point_proximity_sticky_magnet(self, context, stick=False):
         '''Sticky version to point directly'''
         for j, mp in enumerate(self.pos_2d):
+            if not j in self.id_changed: continue## Not optimised
             prevdist = 10000
             res = None
             
@@ -221,11 +223,6 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
     def modal(self, context, event):
         context.area.tag_redraw()
 
-        ### /TESTER - keycode printer (flood console but usefull to know a keycode name)
-        # if event.type not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}:#avoid flood of mouse move.
-            # print('key:', event.type, 'value:', event.value)
-        ###  TESTER/
-
         #handle the continuous press
         if event.type == 'LEFTMOUSE' :
             # if event.value == 'PRESS':
@@ -262,12 +259,14 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                     ms_delta = Vector((self.mouse[0] - self.mouse_prev[0], self.mouse[1] - self.mouse_prev[1]))
                     
                     ## bring points if they are in the radius of the coordsmouse
+                    self.id_changed = []
                     for i, pos in enumerate(self.pos_2d):
-                        if (pos - self.mouse_prev).length > self.radius_prev:
+                        dist = (pos - self.mouse_prev).length
+                        if dist > self.radius_prev:
                             continue
-                        # TODO Check if possiblea to make a falloff (linear to start)
-                        # with percentage of the length to max as a reduction to mouse delta (will slowdown stuff...)
-                        self.pos_2d[i] = pos + ms_delta
+                        self.id_changed.append(i)
+                        # self.pos_2d[i] = pos + ms_delta*0.9# multiply to add a drag, else absolute follow (stick to the brush)
+                        self.pos_2d[i] = pos + ms_delta * (0.9 - dist / self.radius_prev)# falloff (Linear influence)
                     
                     ## store prev for next action
                     self.mouse_prev = self.mouse
@@ -286,9 +285,8 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
             #     # self.mouse_paVector(th.app)end((event.mouse_region_x, event.mouse_region_y))
             #     pass
 
-        ### KEYBOARD SINGLE PRESS
-
-        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET', 'WHEELDOWNMOUSE'}:
+        ## magnet radius
+        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET'}:
             if event.value == 'PRESS':
                 self.tolerance -= 1
                 if self.tolerance <=1:#clamp to 1
@@ -296,11 +294,31 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
                 context.area.tag_redraw()
 
-        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET', 'WHEELUPMOUSE'}:
+        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET'}:
             if event.value == 'PRESS':
                 self.tolerance += 1
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
                 context.area.tag_redraw()
+
+        ## brush radius
+        if event.type in {'X', 'WHEELDOWNMOUSE'}:
+            if event.value == 'PRESS':
+                self.pen_radius -= 1
+                if self.pen_radius <=1:#clamp to 1
+                    self.pen_radius = 1
+                context.scene.gp_magnetools.mgnt_radius = self.pen_radius
+                context.area.tag_redraw()
+
+        if event.type in {'C', 'WHEELUPMOUSE'}:
+            if event.value == 'PRESS':
+                self.pen_radius += 1
+                context.scene.gp_magnetools.mgnt_radius = self.pen_radius
+                context.area.tag_redraw()
+
+        if event.type == 'M':
+            if event.value == 'PRESS':
+                self.point_snap = not self.point_snap
+                context.scene.gp_magnetools.mgnt_snap_to_points = self.point_snap
 
         # Valid
         if event.type in {'RET', 'SPACE'}:
@@ -474,8 +492,9 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         ## initiate variable to use (ex: mouse coords)
         self.mouse = Vector((0, 0)) # updated tuple of mouse coordinate
         self.mouse_prev = None # updated tuple of mouse coordinate
-        self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
-        
+        # self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
+        self.id_changed = []
+
         ## Starts the modal
         display_text = 'Magnet Brush mode | Valid: Space, Enter | Cancel: Right Click, Escape |'
         if material_targets and mat_ids:

@@ -49,6 +49,12 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
+1.5.0:
+
+- Better brush behavior: modify only brushed points instead of magnetize whole selection
+- Better sculpt brush feel: drag point instead of stick, basic linear falloff)
+- key: pressing `M` toggle point/line magnet during the modal
+
 1.4.0:
 
 - feat: new _brush_ magnet mode

@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 4, 0),
+    "version": (1, 5, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "This an early alpha, still in development",
