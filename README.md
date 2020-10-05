@@ -36,18 +36,19 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
-- resample on the fly
-- resample shortcut ?
-- authorize snapping on the same layer as option
-- Brush mode... (complex, maybe on another version)
+- 
+- resample shortcut (resample on the fly tested, not so good...)
+- authorize snapping on the same layer as an option ?
 -  -->
-
-<!-- ## Done
-- Autoclean overlapping output points locations -->
 
 ---
 
 ## Changelog:
+
+
+1.6.0
+
+- Change: move global magnet by clicking, (Better global magnet control than previous "grab")
 
 1.5.0:
 

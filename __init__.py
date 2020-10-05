@@ -2,10 +2,10 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 5, 0),
+    "version": (1, 6, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
-    "warning": "This an early alpha, still in development",
+    "warning": "Still in development",
     "doc_url": "https://github.com/Pullusb/GP_magnet_strokes",
     "category": "Object" }
 
@@ -326,69 +326,41 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
 
         ## Get mouse move
         if event.type in {'MOUSEMOVE'}:
-            # INBETWEEN_MOUSEMOVE : Mouse sub-moves when too fast and need precision to get higher resolution sample in coordinate.
-            ## update by mouse moves ! 
-            self.mouse = (event.mouse_region_x, event.mouse_region_y)
-            ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
-            self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d]
+            if self.pressed_key == 'LEFTMOUSE':
 
-            # self.compute_proximity_magnet(context)# on line
-            if self.point_snap:
-                self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
-            else:
-                self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
-            
-            # ## Store mouse position in a variable
-            
-            # ## Store mouse path in a list (only if left click is pressed)
-            # if self.pressed_key == 'LEFTMOUSE':# This is evaluated as a continuous press
-            #     # self.mouse_path.append((event.mouse_region_x, event.mouse_region_y))
-            #     pass
+                # INBETWEEN_MOUSEMOVE : Mouse sub-moves when too fast and need precision to get higher resolution sample in coordinate.
+                ## update by mouse moves ! 
+                if not self.mouse_prev:
+                    self.mouse_prev = (event.mouse_region_x, event.mouse_region_y)
+                else:
+                    self.mouse = (event.mouse_region_x, event.mouse_region_y)
+                    # ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
+                    # self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d] # move like a grab
+                    ms_delta = Vector((self.mouse[0] - self.mouse_prev[0], self.mouse[1] - self.mouse_prev[1]))
+                    self.pos_2d = [pos + ms_delta for pos in self.pos_2d]
 
-        '''
+                    # self.compute_proximity_magnet(context)# on line
+                    if self.point_snap:
+                        self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
+                    else:
+                        self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
+                    
+                # ## Store mouse position in a variable
+                
+                # ## Store mouse path in a list (only if left click is pressed)
+                # if self.pressed_key == 'LEFTMOUSE':# This is evaluated as a continuous press
+                #     # self.mouse_path.append((event.mouse_region_x, event.mouse_region_y))
+                #     pass
+
+
         ### /CONTINUOUS PRESS
         if event.type == 'LEFTMOUSE':
-            self.pressed_key = 'LEFTMOUSE'
-            ## While pushed, variable pressed stay on
-            
+            self.pressed_key = 'LEFTMOUSE'      
             if event.value == 'RELEASE':
-                # print('Action on release')#Dbg
-
-                #if release, stop continuous press and do the thing !
-                # Reset the key
+                self.mouse_prev = None
                 self.pressed_key = 'NOTHING'
-                
-                ## if needed, add UNDO STEP push before doing the clicked action (usefull for drawing strokes)
-                # bpy.ops.ed.undo_push()
-
-                # if skip_condition :
-                #     self.pressed_key = 'NOTHING'# reset pressed_key state
-                #     return {'RUNNING_MODAL'}
-
-                # if stop_condition:
-                #     # self.report({'ERROR'}, 'Error message for you, dear user')
-                #     return {'CANCELLED'}
-
-                ## Do things according to modifier detected (on release here) Put combo longest key combo first
-        
-
-        if self.pressed_key == 'LEFTMOUSE':# using pressed_key variable
-            ## Code here is continuously triggered during press
-            pass
         ### CONTINUOUS PRESS/
 
-
-        ## /SINGLE PRESS
-        if event.type == 'LEFTMOUSE' and event.value == 'PRESS':
-            if self.pressed_ctrl:
-                print('Ctrl + click')
-            else:
-                print('Click')
-            ## Can also finish on click (better do a dedicated exit func if duplicated with abort code)
-            # bpy.types.SpaceView3D.draw_handler_remove(self._handle, 'WINDOW')
-            # return {'FINISHED'}
-        ## SINGLE PRESS/
-        '''
 
 
         ### KEYBOARD SINGLE PRESS
@@ -408,7 +380,7 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 context.area.tag_redraw()
 
         # Valid
-        if event.type in {'RET', 'SPACE', 'LEFTMOUSE'}:
+        if event.type in {'RET', 'SPACE'}:
             self.stop_modal(context)
             
             ## depth correction
@@ -584,7 +556,8 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         # self.draw_event = context.window_manager.event_timer_add(0.1, window=context.window)#Interval in seconds
         
         ## initiate variable to use (ex: mouse coords)
-        self.mouse = (0, 0) # updated tuple of mouse coordinate
+        self.mouse = None
+        self.mouse_prev = None
         self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
         
         ## Starts the modal
