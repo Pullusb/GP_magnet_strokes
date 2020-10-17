@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 6, 0),
+    "version": (1, 7, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "Still in development",
@@ -323,6 +323,13 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             # print('key:', event.type, 'value:', event.value)
         ###  TESTER/
 
+        ### /CONTINUOUS PRESS
+        if event.type == 'LEFTMOUSE':
+            self.pressed_key = 'LEFTMOUSE'      
+            if event.value == 'RELEASE':
+                self.mouse_prev = None
+                self.pressed_key = 'NOTHING'
+        ### CONTINUOUS PRESS/
 
         ## Get mouse move
         if event.type in {'MOUSEMOVE'}:
@@ -332,18 +339,29 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 ## update by mouse moves ! 
                 if not self.mouse_prev:
                     self.mouse_prev = (event.mouse_region_x, event.mouse_region_y)
+                    # self.last_pos_2d = self.pos_2d.copy()# Per touch method
                 else:
                     self.mouse = (event.mouse_region_x, event.mouse_region_y)
+
+                    ## Grab mode (follow mouse from initial ops trigger position, very robust but not tablet friendly)
                     # ms_delta = Vector((self.mouse[0] - self.initial_ms[0], self.mouse[1] - self.initial_ms[1]))
                     # self.pos_2d = [pos + ms_delta for pos in self.initial_pos_2d] # move like a grab
+                    
+                    ## Continous update Mode (can generate offset)
                     ms_delta = Vector((self.mouse[0] - self.mouse_prev[0], self.mouse[1] - self.mouse_prev[1]))
                     self.pos_2d = [pos + ms_delta for pos in self.pos_2d]
+                    self.mouse_prev = self.mouse
+                    
+                    ## Per touch method (with copy of the list on mouse_prev update)
+                    # ms_delta = Vector((self.mouse[0] - self.mouse_prev[0], self.mouse[1] - self.mouse_prev[1]))
+                    # self.pos_2d = [pos + ms_delta for pos in self.last_pos_2d]
 
                     # self.compute_proximity_magnet(context)# on line
                     if self.point_snap:
                         self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
                     else:
                         self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
+                    
                     
                 # ## Store mouse position in a variable
                 
@@ -353,19 +371,12 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 #     pass
 
 
-        ### /CONTINUOUS PRESS
-        if event.type == 'LEFTMOUSE':
-            self.pressed_key = 'LEFTMOUSE'      
-            if event.value == 'RELEASE':
-                self.mouse_prev = None
-                self.pressed_key = 'NOTHING'
-        ### CONTINUOUS PRESS/
 
 
 
         ### KEYBOARD SINGLE PRESS
 
-        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET', 'WHEELDOWNMOUSE'}:
+        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET', 'WHEELDOWNMOUSE', 'S'}:
             if event.value == 'PRESS':
                 self.tolerance -= 1
                 if self.tolerance <=1:#clamp to 1
@@ -373,7 +384,7 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
                 context.area.tag_redraw()
 
-        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET', 'WHEELUPMOUSE'}:
+        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET', 'WHEELUPMOUSE', 'D'}:
             if event.value == 'PRESS':
                 self.tolerance += 1
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
@@ -471,6 +482,13 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             self.report({'ERROR'}, f"No material target found from in list {settings.mgnt_material_targets} (analysed as {'|'.join(material_targets)})\nChange targets names or leave field empty to target all materials")
             return {'CANCELLED'}
         
+        margin = 25
+        area_x = -margin# context.area.x + 
+        area_y = -margin# context.area.y + 
+        area_mx = context.area.width + margin
+        area_my = context.area.height + margin
+
+
         # self.target_points = []
         # self.target_2d_co = []
         self.matworld = ob.matrix_world
@@ -499,7 +517,25 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
                 if select_mask and not s.select:
                     continue
 
-                self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+                ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
+                # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+
+                tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
+                
+                ## visibility check (check all point in stroke)
+                # ok=False
+                # for p in tgt_2d_pts_list:
+                #     if area_x < p[0] < area_mx and area_y < p[1] < area_my:
+                #         ok=True
+                #         break
+                
+                ## visibility check Quick (checking only first and last point of stroke)
+                ok = area_x < tgt_2d_pts_list[0][0] < area_mx and area_y < tgt_2d_pts_list[0][1] < area_my\
+                    or area_x < tgt_2d_pts_list[-1][0] < area_mx and area_y < tgt_2d_pts_list[-1][1] < area_my
+                
+                if not ok:
+                    continue
+                self.target_strokes.append(tgt_2d_pts_list)
 
                 
                 ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
@@ -513,6 +549,7 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
             self.report({'ERROR'}, "No target strokes found")
             return {'CANCELLED'}
 
+        print(f'{len(self.target_strokes)} target strokes')#Dbg
         ## store moving points
         self.mv_points = []
         # Work on last stroke hwne in paint mode
@@ -604,11 +641,11 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
         name="Snap to points", description="Snap on points instead of lines (Better performance)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
 
     mgnt_tolerance : bpy.props.IntProperty(
-        name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=10, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
+        name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=25, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
     
     mgnt_radius : bpy.props.IntProperty(name="Radius", 
     description="Radius of the brush\nUse [/], X/C, numpad -/+ or mousewheel down/up to modify during draw", 
-    default=12, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
+    default=20, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
 
 addon_keymaps = []
 def register_keymaps():

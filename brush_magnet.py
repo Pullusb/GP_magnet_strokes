@@ -37,8 +37,6 @@ def circle_2d(coord, r, num_segments):
     return points
 
 def draw_callback_px(self, context):
-    scn = context.scene
-    full_radius = scn.gp_magnetools.mgnt_radius
     # 50% alpha, 2 pixel width line
     shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
     bgl.glEnable(bgl.GL_BLEND)
@@ -58,18 +56,28 @@ def draw_callback_px(self, context):
     shader.bind()
     shader.uniform_float("color", (0.5, 0.5, 0.5, 0.5))#grey-light
     batch.draw(shader)
+
+    #paint_widget = Point(self.mouse).buffer(scn.GPS_radius, 2)#shapely mode !
     '''
 
-    #paint widget
-    #paint_widget = Point(self.mouse).buffer(scn.GPS_radius, 2)#shapely mode !
-    
-    paint_widget = circle_2d(self.mouse, self.pen_radius, self.crosshair_resolution)#optimisation ?
+    ## magnet area display (may induce error since it's really radius from point, not from mouse ...)
+    paint_widget = circle_2d(self.mouse, self.tolerance, self.crosshair_resolution)#optimisation ?
     paint_widget.append(paint_widget[0])#re-insert last coord to close the circle
 
     batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": paint_widget})
     shader.bind()
-    shader.uniform_float("color", (0.6, 0.0, 0.0, 0.5))#red-light
+    shader.uniform_float("color", (0.3, 0.1, 0.6, 0.2))# blue-super-light
     batch.draw(shader)
+    
+    ## Paint widget
+    paint_widget = circle_2d(self.mouse, self.pen_radius_diplay, self.crosshair_resolution)#optimisation ?
+    paint_widget.append(paint_widget[0])#re-insert last coord to close the circle
+
+    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": paint_widget})
+    shader.bind()
+    shader.uniform_float("color", (0.6, 0.0, 0.0, 0.6))# red-light
+    batch.draw(shader)
+
 
     # restore opengl defaults
     bgl.glLineWidth(1)
@@ -80,7 +88,7 @@ def draw_callback_px(self, context):
 
     ## show active modifier
     # if self.pressed_alt or self.pressed_shift:
-    #     blf.position(font_id, self.mouse[0]+full_radius, self.mouse[1]+full_radius, 0)
+    #     blf.position(font_id, self.mouse[0]+self.pen_radius_diplay, self.mouse[1]+self.pen_radius_diplay, 0)
     #     blf.size(font_id, 15, 72)
     #     if self.pressed_alt:
     #         blf.draw(font_id, '-')
@@ -90,7 +98,7 @@ def draw_callback_px(self, context):
     ## draw text debug infos
     blf.position(font_id, 15, 30, 0)
     blf.size(font_id, 20, 72)
-    blf.draw(font_id, f'Magnet Brush - radius: {full_radius}')
+    blf.draw(font_id, f'Magnet - brush radius: {self.pen_radius_diplay} - tolerance radius: {self.tolerance}')
 
 class GPMGT_OT_magnet_brush(bpy.types.Operator):
     """Magnet fill strokes to line stroke with a brush"""
@@ -226,13 +234,15 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         #handle the continuous press
         if event.type == 'LEFTMOUSE' :
             # if event.value == 'PRESS':
-            self.pressed_key = 'LEFTMOUSE'
+            self.pressed_key = 'LEFTMOUSE'            
             #while pushed, variable pressed stay on...
             if event.value == 'RELEASE':
-                #if release, stop and do the thing !
+                # if release the contiuous press
                 self.pressed_key = 'NOTHING'
-                #reset mouse prev to avoid jump in hyper space of the points
+                # reset mouse prev to avoid points jumping in hyper space
                 self.mouse_prev = None
+                # reset display to full size when pen is up
+                self.pen_radius_diplay = self.scene_brush_radius
 
         ## Get mouse move
         if event.type in {'MOUSEMOVE'}:
@@ -245,7 +255,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                     self.radius_prev = self.pen_radius
                 
                 else:
-                    self.pen_radius = int(context.scene.gp_magnetools.mgnt_radius * event.pressure)
+                    self.pen_radius = self.pen_radius_diplay = int(self.scene_brush_radius * event.pressure)# context.scene.gp_magnetools.mgnt_radius
                     #debug pressure
                     # print('pression', event.pressure, '-> self.pen_radius: ', self.pen_radius)
 
@@ -286,7 +296,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
             #     pass
 
         ## magnet radius
-        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET'}:
+        if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET', 'S'}:
             if event.value == 'PRESS':
                 self.tolerance -= 1
                 if self.tolerance <=1:#clamp to 1
@@ -294,7 +304,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
                 context.area.tag_redraw()
 
-        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET'}:
+        if event.type in {'NUMPAD_PLUS', 'RIGHT_BRACKET', 'D'}:
             if event.value == 'PRESS':
                 self.tolerance += 1
                 context.scene.gp_magnetools.mgnt_tolerance = self.tolerance
@@ -303,16 +313,16 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         ## brush radius
         if event.type in {'X', 'WHEELDOWNMOUSE'}:
             if event.value == 'PRESS':
-                self.pen_radius -= 1
-                if self.pen_radius <=1:#clamp to 1
-                    self.pen_radius = 1
-                context.scene.gp_magnetools.mgnt_radius = self.pen_radius
+                self.scene_brush_radius -= 1
+                if self.scene_brush_radius <=1:#clamp to 1
+                    self.scene_brush_radius = 1
+                context.scene.gp_magnetools.mgnt_radius = self.pen_radius_diplay = self.pen_radius = self.scene_brush_radius
                 context.area.tag_redraw()
 
         if event.type in {'C', 'WHEELUPMOUSE'}:
             if event.value == 'PRESS':
-                self.pen_radius += 1
-                context.scene.gp_magnetools.mgnt_radius = self.pen_radius
+                self.scene_brush_radius += 1
+                context.scene.gp_magnetools.mgnt_radius = self.pen_radius_diplay = self.pen_radius = self.scene_brush_radius
                 context.area.tag_redraw()
 
         if event.type == 'M':
@@ -405,6 +415,22 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
             self.report({'ERROR'}, f"No material target found from in list {settings.mgnt_material_targets} (analysed as {'|'.join(material_targets)})\nChange targets names or leave field empty to target all materials")
             return {'CANCELLED'}
         
+
+        ## Visible filter
+        # location_to_region evaluated within the coordinate of the area
+        #
+        #          context.area.height
+        #     o----o context.area.width
+        #     |    |
+        #   0 o----o
+        #     0
+        
+        margin = 25
+        area_x = -margin# context.area.x + 
+        area_y = -margin# context.area.y + 
+        area_mx = context.area.width + margin
+        area_my = context.area.height + margin
+
         # self.target_points = []
         # self.target_2d_co = []
         self.matworld = ob.matrix_world
@@ -432,9 +458,27 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                 ## work only on selected strokes from other layers (usefull to magnet on specific strokes)
                 if select_mask and not s.select:
                     continue
+                
+                ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
+                # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
 
-                self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+                tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
+                
+                ## visibility check (check all point in stroke)
+                # ok=False
+                # for p in tgt_2d_pts_list:
+                #     if area_x < p[0] < area_mx and area_y < p[1] < area_my:
+                #         ok=True
+                #         break
+                
+                ## visibility check Quick (checking only first and last point of stroke)
+                ok = area_x < tgt_2d_pts_list[0][0] < area_mx and area_y < tgt_2d_pts_list[0][1] < area_my\
+                    or area_x < tgt_2d_pts_list[-1][0] < area_mx and area_y < tgt_2d_pts_list[-1][1] < area_my
+                
+                if not ok:
+                    continue
 
+                self.target_strokes.append(tgt_2d_pts_list)
                 
                 ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
                 # for p in s.points:
@@ -446,6 +490,8 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         if not self.target_strokes:
             self.report({'ERROR'}, "No target strokes found")
             return {'CANCELLED'}
+
+        print(f'{len(self.target_strokes)} target strokes')#Dbg
 
         ## store moving points
         self.mv_points = []
@@ -502,8 +548,8 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
 
 
         ## brush settings
-        self.pen_radius = context.scene.gp_magnetools.mgnt_radius#10 # use a scene prop here (or check sculpt radius)
-        self.crosshair_resolution = 16# hardcode for now(4,8,12,16,20...) keep multiple of 4
+        self.scene_brush_radius = self.pen_radius_diplay = self.pen_radius = context.scene.gp_magnetools.mgnt_radius#10 # use a scene prop here (or check sculpt radius)
+        self.crosshair_resolution = 32# hardcode for now(4,8,12,16,20...) keep multiple of 4
 
         context.area.header_text_set(display_text)
         args = (self, context)

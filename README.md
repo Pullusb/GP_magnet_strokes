@@ -36,7 +36,8 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
-- 
+- need performance upgrade might check stroke proximity with a kdtree
+- draw virtual point position on screen
 - resample shortcut (resample on the fly tested, not so good...)
 - authorize snapping on the same layer as an option ?
 -  -->
@@ -45,6 +46,13 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
+
+1.7.0
+
+- performance: only target strokes visible on screen
+- fix: big bug on basic magnet pen drag introduced in last version
+- display radius of magnet proximity on mouse (though it's a radius that center should be "per points")
+- fix: pen radius display
 
 1.6.0
 
