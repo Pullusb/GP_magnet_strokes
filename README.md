@@ -22,12 +22,18 @@ How to use:
 
 Use a shortcut magnet selected lines on active layers on lines of other layers
 
+resize brush with `F`
+resize magnet influence with `shift` + `F`
+
 You can filter by material names in the dedicated field separated by a ',' (case insensitive)  
 To target all lines, just leave the field empty.
 
 /!\ The magnet snapping happen in 2D screen space but will also change the depth of your moving stroke.  
 Those are aligned on the same depth as the one of the point in your selection.  
-It does not auto reproject onthe drawing plane ! (for now)  
+
+Note : it perform an auto reprojection at the end of the edit according to your GP projection settings.
+
+<!-- It does not auto reproject onthe drawing plane ! (for now)   -->
 
 ### Where ?
 
@@ -36,8 +42,7 @@ Shortcut to trigger (temporary) : `F5`
 
 <!--
 ## Todo:
-- need performance upgrade might check stroke proximity with a kdtree
-- draw virtual point position on screen
+- performance upgrade might check stroke proximity with a kdtree 
 - resample shortcut (resample on the fly tested, not so good...)
 - authorize snapping on the same layer as an option ?
 -  -->
@@ -46,6 +51,14 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
+1.8.0:
+
+- feat: Option to display ghost points (draw virtual point position on screen)
+- feat: brush resize:
+    - resize brush with `F`
+    - resize magnet influence with `shift + F`
+- code: refactor
+- UX: exposing only brush magnet, not global magnet
 
 1.7.0
 
