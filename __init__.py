@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 8, 0),
+    "version": (1, 9, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "Still in development",
@@ -11,6 +11,7 @@ bl_info = {
 
 from . import brush_magnet
 from . import basic_magnet
+from . import ops_magnet
 
 import bpy
 
@@ -27,14 +28,16 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
         layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
         layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
         layout.prop(context.scene.gp_magnetools, 'mgnt_snap_to_points')
-        layout.prop(context.scene.gp_magnetools, 'mgnt_tolerance')
 
         # layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
         ## call through 
 
         row = layout.row()
-        row.prop(context.scene.gp_magnetools, 'mgnt_radius')
+        row.prop(context.scene.gp_magnetools, 'mgnt_radius', text='Brush Size')
+        row.prop(context.scene.gp_magnetools, 'mgnt_tolerance')# text='Magnet radius'
+        row = layout.row()
         row.operator('gp.magnet_brush', text='Magnet Brush', icon='SNAP_ON')
+        row.operator('gp.magnet_lines_all', text='Magnet', icon='SNAP_ON')
 
 class MGNT_PGT_settings(bpy.types.PropertyGroup) :
     mgnt_material_targets : bpy.props.StringProperty(
@@ -61,8 +64,7 @@ addon_keymaps = []
 def register_keymaps():
     addon = bpy.context.window_manager.keyconfigs.addon
     # km = addon.keymaps.new(name = "3D View", space_type = "VIEW_3D")
-    km = addon.keymaps.new(name = "Grease Pencil", space_type = "EMPTY", region_type='WINDOW')
-    
+    ### keymap itemps detail
     # kmi = km.keymap_items.new(
     #     name="Magnet fill",
     #     idname="gp.magnet_lines",
@@ -74,10 +76,11 @@ def register_keymaps():
     #     oskey=False
     #     )
 
-    km.keymap_items.new('gp.magnet_lines', type='F5', value='PRESS')
-
-
+    km = addon.keymaps.new(name = "Grease Pencil", space_type = "EMPTY", region_type='WINDOW')
+    km.keymap_items.new('gp.magnet_brush', type='F5', value='PRESS')
     addon_keymaps.append(km)
+    
+
 
 def unregister_keymaps():
     wm = bpy.context.window_manager
@@ -97,6 +100,7 @@ GPMGT_PT_magnet_panel,
 def register():
     brush_magnet.register()
     basic_magnet.register()
+    ops_magnet.register()
     for cls in classes:
         bpy.utils.register_class(cls)
     
@@ -109,6 +113,7 @@ def unregister():
     unregister_keymaps()
     brush_magnet.unregister()
     basic_magnet.unregister()
+    ops_magnet.unregister()
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

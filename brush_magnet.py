@@ -4,7 +4,6 @@ import bpy
 from mathutils import Vector, Matrix
 from mathutils import geometry
 import math
-from math import sqrt
 
 import numpy as np
 import gpu
@@ -45,6 +44,7 @@ def draw_callback_px(self, context):
     shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
     bgl.glEnable(bgl.GL_BLEND)
     bgl.glLineWidth(2)
+    bgl.glPointSize(3)
 
     # paint
     """
@@ -82,14 +82,15 @@ def draw_callback_px(self, context):
     shader.uniform_float("color", (0.6, 0.0, 0.0, 0.6))# red-light
     batch.draw(shader)
 
-    """ ## Points
+    ## Points
     batch = batch_for_shader(shader, 'POINTS', {"pos": self.pos_2d})
     shader.bind()
-    shader.uniform_float("color", (0.9, 0.8, 0.1, 0.9))# yellow-bright
+    shader.uniform_float("color", (1.0, 0.8, 0.1, 0.9))# yellow-bright
     # shader.uniform_float("color", (1.0, 0.45, 0.45, 1.0))# pink
     # shader.uniform_float("color", (0.8, 0.1, 0.1, 0.9))# bright red
     batch.draw(shader)
-    """
+    
+
     # restore opengl defaults
     bgl.glLineWidth(1)
     bgl.glDisable(bgl.GL_BLEND)
@@ -251,7 +252,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                 if self.resize_magnet:
                     self.tolerance = clamp(abs(self.scene_tol_radius + self.mouse[0] - self.center[0]), 1, 1000)
                 else:
-                    self.pen_radius_diplay = clamp(abs(self.pen_radius + self.mouse[0] - self.center[0]), 1, 1000)
+                    self.pen_radius_diplay = clamp(abs(self.scene_brush_radius + self.mouse[0] - self.center[0]), 1, 1000)
 
                 if event.type == 'LEFTMOUSE':
                     if self.resize_magnet:

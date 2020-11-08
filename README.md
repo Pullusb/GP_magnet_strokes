@@ -51,6 +51,12 @@ Shortcut to trigger (temporary) : `F5`
 
 ## Changelog:
 
+1.9.0:
+
+- feat: new operator to magnet once without modal control
+- UI: better arrangement
+- fix: bug when resizing brush
+
 1.8.0:
 
 - feat: Option to display ghost points (draw virtual point position on screen)

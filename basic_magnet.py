@@ -6,7 +6,6 @@ import mathutils
 from mathutils import Vector
 from math import sqrt
 from sys import platform
-import subprocess
 from time import time#Dbg-time
 
 ## modal import
