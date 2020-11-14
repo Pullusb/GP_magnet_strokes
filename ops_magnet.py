@@ -85,7 +85,7 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
 
 
     def compute_point_proximity_magnet(self, context):
-        '''Sticky version to point directly'''
+        '''To point directly (faster)'''
         for j, mp in enumerate(self.pos_2d):
             prevdist = 10000
             res = None
@@ -199,8 +199,27 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
         self.matworld = ob.matrix_world
         gpl = ob.data.layers
 
-        ## avoid hided layers and avoid active layer (fill layer)...
-        tgt_layers = [l for l in gpl if not l.hide and l != gpl.active]
+        if not gpl.active:
+            self.report({'ERROR'}, f"No active layers on GP object")
+            return {'CANCELLED'}
+
+        ## target layers        
+        extend = settings.mgnt_near_layers_targets
+        if extend < 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index > i >=  gpl.active_index + extend]
+        
+        elif extend > 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index < i <=  gpl.active_index + extend]
+        
+        else:# extend == 0
+            tgts = [l for i, l in enumerate(gpl) if i != gpl.active_index]
+
+        tgt_layers = [l for l in tgts if not l.hide] # and l != gpl.active
+        
+        if not tgt_layers:# No target found
+            self.report({'ERROR'}, f"No layers targeted, Check filters (Note: can only other layers than active)")
+            return {'CANCELLED'}
+
         # all_strokes = [s for l in tgt_layers for s in l.active_frame.strokes if s.material_index in mat_ids]
         # self.target_strokes = [[(p, location_to_region(self.matworld @ p.co)) for p in s.points] for s in all_strokes]
         

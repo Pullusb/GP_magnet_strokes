@@ -46,23 +46,34 @@ def draw_callback_px(self, context):
     bgl.glLineWidth(2)
     bgl.glPointSize(3)
 
-    # paint
-    """
-    batch = batch_for_shader(shader, 'TRIS', {"pos": self.vertices}, indices=self.indices)
-    shader.bind()
-    shader.uniform_float("color", self.paint_color)#indigo (0, 0.5, 0.5, 1.0)
-    batch.draw(shader)
-    """
+    ## magnet area display (may induce error since it's really radius from point, not from mouse ...)
+    paint_widget = circle_2d(self.mouse, self.tolerance, self.crosshair_resolution)#optimisation ?
+    paint_widget.append(paint_widget[0])#re-insert last coord to close the circle
 
-    '''
-    #draw debug line showing mouse path
-    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": self.mouse_path})
+    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": paint_widget})
     shader.bind()
-    shader.uniform_float("color", (0.5, 0.5, 0.5, 0.5))#grey-light
+    shader.uniform_float("color", (0.3, 0.1, 0.6, 0.2))# blue-super-light
+    batch.draw(shader)
+    
+    ## Paint widget
+    paint_widget = circle_2d(self.mouse, self.pen_radius_diplay, self.crosshair_resolution)#optimisation ?
+    paint_widget.append(paint_widget[0])#re-insert last coord to close the circle
+
+    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": paint_widget})
+    shader.bind()
+    shader.uniform_float("color", (0.6, 0.0, 0.0, 0.6))# red-light
     batch.draw(shader)
 
-    #paint_widget = Point(self.mouse).buffer(scn.GPS_radius, 2)#shapely mode !
-    '''
+    # restore opengl defaults
+    bgl.glLineWidth(1)
+    bgl.glDisable(bgl.GL_BLEND)
+
+def draw_callback_px_with_points(self, context):
+    # 50% alpha, 2 pixel width line
+    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
+    bgl.glEnable(bgl.GL_BLEND)
+    bgl.glLineWidth(2)
+    bgl.glPointSize(3)
 
     ## magnet area display (may induce error since it's really radius from point, not from mouse ...)
     paint_widget = circle_2d(self.mouse, self.tolerance, self.crosshair_resolution)#optimisation ?
@@ -134,6 +145,8 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         # self.pos_2d # list of last registered 2d pos
 
         for j, mp in enumerate(self.pos_2d):
+            if not j in self.id_changed:
+                continue # affect brushed only
             #reset
             prevdist = 10000
             res = None
@@ -161,7 +174,30 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
             else:
                 self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
+    def compute_point_proximity_magnet(self, context):
+        '''To point directly (faster)'''
+        for j, mp in enumerate(self.pos_2d):
+            if not j in self.id_changed:
+                continue # affect brushed only
+            prevdist = 10000
+            res = None
+            
+            for stroke_pts in self.target_strokes:
+                for i, pos in enumerate(stroke_pts):
+                    ## check distance against previous
+                    dist = vector_length_2d(pos, mp)
+                    if dist < prevdist:
+                        res = pos
+                        prevdist = dist
 
+            ## Use a proximity a snap with tolerance:
+            if prevdist <= self.tolerance:
+                #res is 2d, need 3d coord
+                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+            else:
+                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+
+    ## unused
     def compute_proximity_sticky_magnet(self, context, stick=False):
         '''Sticky version that lock the points magneted once'''
         for j, mp in enumerate(self.pos_2d):
@@ -194,7 +230,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
 
             else:# keep following cursor
                 self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
-
+    ## unused
     def compute_point_proximity_sticky_magnet(self, context, stick=False):
         '''Sticky version to point directly'''
         for j, mp in enumerate(self.pos_2d):
@@ -221,6 +257,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
             else:# keep following cursor
                 self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
+
     def autoclean(self, context):
         ct = 0
         # passed_coords = [] # here means point overlap check across strokes...
@@ -245,6 +282,19 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
     def modal(self, context, event):
         context.area.tag_redraw()
 
+        ## Handle the continuous press
+        if event.type == 'LEFTMOUSE' :
+            # if event.value == 'PRESS':
+            self.pressed_key = 'LEFTMOUSE'            
+            #while pushed, variable pressed stay on...
+            if event.value == 'RELEASE':
+                # if release the contiuous press
+                self.pressed_key = 'NOTHING'
+                # reset mouse prev to avoid points jumping in hyper space
+                self.mouse_prev = None
+                # reset display to full size when pen is up
+                self.pen_radius_diplay = self.scene_brush_radius
+
         ## resize brush
         if self.pressed_key == 'NOTHING':
             if self.brush_sizing:
@@ -266,20 +316,6 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                 self.resize_magnet = event.shift
                 self.brush_sizing = True
                 self.center = self.mouse
-
-                
-        #handle the continuous press
-        if event.type == 'LEFTMOUSE' :
-            # if event.value == 'PRESS':
-            self.pressed_key = 'LEFTMOUSE'            
-            #while pushed, variable pressed stay on...
-            if event.value == 'RELEASE':
-                # if release the contiuous press
-                self.pressed_key = 'NOTHING'
-                # reset mouse prev to avoid points jumping in hyper space
-                self.mouse_prev = None
-                # reset display to full size when pen is up
-                self.pen_radius_diplay = self.scene_brush_radius
 
         ## Get mouse move
         if event.type in {'MOUSEMOVE'}:
@@ -321,17 +357,13 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
                     
                     # self.compute_proximity_magnet(context)# on line
                     if self.point_snap:
-                        self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
+                        self.compute_point_proximity_magnet(context)
+                        # self.compute_point_proximity_sticky_magnet(context, stick=event.ctrl)# on point with stickyness ctrl 
                     else:
-                        self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
+                        self.compute_proximity_magnet(context)
+                        # self.compute_proximity_sticky_magnet(context, stick=event.ctrl)# on line with stickiness ctrl
             
-            # ## Store mouse position in a variable
-            
-            # ## Store mouse path in a list (only if left click is pressed)
-            # if self.pressed_key == 'LEFTMOUSE':# This is evaluated as a continuous press
-            #     # self.mouse_paVector(th.app)end((event.mouse_region_x, event.mouse_region_y))
-            #     pass
-
+        ## additional keyboard control for radius (optionnal, disabled to keep things fast)
         """
         ## magnet radius
         if event.type in {'NUMPAD_MINUS', 'LEFT_BRACKET'}:
@@ -474,11 +506,27 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         self.matworld = ob.matrix_world
         gpl = ob.data.layers
 
-        ## avoid hided layers and avoid active layer (fill layer)...
-        tgt_layers = [l for l in gpl if not l.hide and l != gpl.active]
-        # all_strokes = [s for l in tgt_layers for s in l.active_frame.strokes if s.material_index in mat_ids]
-        # self.target_strokes = [[(p, location_to_region(self.matworld @ p.co)) for p in s.points] for s in all_strokes]
+        if not gpl.active:
+            self.report({'ERROR'}, f"No active layers on GP object")
+            return {'CANCELLED'}
         
+        ## target layers 
+        extend = settings.mgnt_near_layers_targets
+        if extend < 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index > i >=  gpl.active_index + extend]
+        
+        elif extend > 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index < i <=  gpl.active_index + extend]
+        
+        else:# extend == 0
+            tgts = [l for i, l in enumerate(gpl) if i != gpl.active_index]
+
+        tgt_layers = [l for l in tgts if not l.hide] # and l != gpl.active
+        
+        if not tgt_layers:# No target found
+            self.report({'ERROR'}, f"No layers targeted, Check filters (Note: can only other layers than active)")
+            return {'CANCELLED'}
+
         ## Get all 2D point position of targeted lines
         self.target_strokes = []
         for l in tgt_layers:            
@@ -578,7 +626,7 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         ## If a timer is needed during modal
         # self.draw_event = context.window_manager.event_timer_add(0.1, window=context.window)#Interval in seconds
         
-        ## initiate variable to use (ex: mouse coords)
+        ## Initiate variable to use (ex: mouse coords)
         self.mouse = Vector((0, 0)) # updated tuple of mouse coordinate
         self.mouse_prev = None # updated tuple of mouse coordinate
         # self.initial_ms = (event.mouse_region_x, event.mouse_region_y)
@@ -587,10 +635,12 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
         ## Starts the modal
         display_text = 'Magnet Brush mode | Valid: Space, Enter | Cancel: Right Click, Escape |'
         if material_targets and mat_ids:
-            display_text += f' Target materials: "{"|".join(material_targets)}"'
+            display_text += f' Materials targets: "{"|".join(material_targets)}" |'
+        
+        if settings.mgnt_near_layers_targets != 0:
+            display_text += f' Layers targets: "{"|".join([l.info for l in tgt_layers])}" |'
 
-
-        ## brush settings
+        ## Brush settings
         self.brush_sizing = False
         self.resize_magnet = False
         self.scene_tol_radius = context.scene.gp_magnetools.mgnt_tolerance
@@ -600,7 +650,13 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
 
         context.area.header_text_set(display_text)
         args = (self, context)
-        self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
+
+        ## Display pre-magnet point position of not
+        if settings.mgnt_display_ghosts:
+            self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px_with_points, args, 'WINDOW', 'POST_PIXEL')
+        else:
+            self._handle = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, args, 'WINDOW', 'POST_PIXEL')
+        
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 

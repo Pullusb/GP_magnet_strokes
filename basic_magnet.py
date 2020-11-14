@@ -398,6 +398,27 @@ class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
         self.matworld = ob.matrix_world
         gpl = ob.data.layers
 
+        if not gpl.active:
+            self.report({'ERROR'}, f"No active layers on GP object")
+            return {'CANCELLED'}
+
+        ## target layers 
+        extend = settings.mgnt_near_layers_targets
+        if extend < 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index > i >=  gpl.active_index + extend]
+        
+        elif extend > 0:
+            tgts = [l for i, l in enumerate(gpl) if gpl.active_index < i <=  gpl.active_index + extend]
+        
+        else:# extend == 0
+            tgts = [l for i, l in enumerate(gpl) if i != gpl.active_index]
+
+        tgt_layers = [l for l in tgts if not l.hide] # and l != gpl.active
+        
+        if not tgt_layers:# No target found
+            self.report({'ERROR'}, f"No layers targeted, Check filters (Note: can only other layers than active)")
+            return {'CANCELLED'}
+
         ## avoid hided layers and avoid active layer (fill layer)...
         tgt_layers = [l for l in gpl if not l.hide and l != gpl.active]
         # all_strokes = [s for l in tgt_layers for s in l.active_frame.strokes if s.material_index in mat_ids]

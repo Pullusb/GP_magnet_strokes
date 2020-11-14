@@ -2,11 +2,11 @@
 
 Magnet selected Grease pencil points to lines on other layers
 
-/!\ Alpha, work in progress
-
 **[Download latest](https://github.com/Pullusb/GP_magnet_strokes/archive/master.zip)**
 
 <!-- ### [Demo Youtube]() -->
+
+Want to support me coding free tools ? [Check this page](http://www.samuelbernou.fr/donate)
 
 ---  
 
@@ -14,42 +14,73 @@ Magnet selected Grease pencil points to lines on other layers
 
 This was made for magneting fill strokes (in dedicated color layer) on line strokes living on other layers.
 
-Source scope:
-    - Paint mode : last stroke only
-    - Edit mode : Selected points (On active layer only !)
+![magnet gif](https://raw.githubusercontent.com/Pullusb/images_repo/master/magnet_brush2.gif)
 
-How to use:  
+### Operators
 
-Use a shortcut magnet selected lines on active layers on lines of other layers
-
-resize brush with `F`
-resize magnet influence with `shift` + `F`
-
-You can filter by material names in the dedicated field separated by a ',' (case insensitive)  
-To target all lines, just leave the field empty.
-
-/!\ The magnet snapping happen in 2D screen space but will also change the depth of your moving stroke.  
-Those are aligned on the same depth as the one of the point in your selection.  
-
-Note : it perform an auto reprojection at the end of the edit according to your GP projection settings.
-
-<!-- It does not auto reproject onthe drawing plane ! (for now)   -->
-
-### Where ?
+Source scope:  
+  - Paint mode : last stroke only
+  - Edit mode : Selected points (only on active layer, you can select stroke on other layers)
 
 Panel in sidebar : 3D view > sidebar ('N') > Gpencil  
-Shortcut to trigger (temporary) : `F5`
+<!-- Shortcut to trigger (temporary) : `F5` -->
+
+
+**Magnet** : Perform operation once with current settings on all selection
+
+**Magnet Brush** : Launch a modal allowing to sculpt
+
+Shortcut available during brush modal :  
+`F` : resize brush  
+`shift` + `F` : resize magnet influence  
+`M` : switch between line and point magnet  
+
+
+### Options
+
+**Near Layers Targets** : Magnet on lines from X layers above (or below if negative), 0 means all (disable the filter)  
+hint: to check all top layers use big value so it counts all the above
+
+**Materials Targets** : Filter lines by material names in field separated by a ',' (case insensitive)  
+To target all lines, just leave the field empty.
+
+**Magnet on selection** : Target only selected stroke (improve performance a lot as only selection is avluated)  
+
+**Snap on point** (switch during modal with `M`) : Magnet on points instead of lines (faster)
+
+**Display Position** : Overlay to show actual point position (pre-snap computation) to see what to "sculpt"
+
+
+### Notes
+
+- Magnet is limited to stroke visible on screen for performance.  
+If the magnet is very slow, try zooming on the area you need to snap on.
+
+- All filters are cumulative
+
+- The magnet snapping happen in 2D screen space but change the depth of your moving stroke.  
+It perform an auto reprojection at the end of the edit according to your current GP projection settings.
+
+
+> For productivity you can add a shortcut to these operators with left click over the button > Add shortcut
+
 
 <!--
 ## Todo:
-- performance upgrade might check stroke proximity with a kdtree 
-- resample shortcut (resample on the fly tested, not so good...)
-- authorize snapping on the same layer as an option ?
+- performance upgrade via stroke proximity checking with a kdtree 
+- authorize snapping on the same layer as an option
 -  -->
 
 ---
 
 ## Changelog:
+
+2.0.0:
+- performance: deleted old _sticky_ condition from V1
+- feat: new filter to target only target nearby  upper or lower layers
+- UI: choice to display the point
+- code: cleanup
+- doc: big readme update
 
 1.9.0:
 

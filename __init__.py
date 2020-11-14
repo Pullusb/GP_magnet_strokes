@@ -2,11 +2,12 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (1, 9, 0),
+    "version": (2, 0, 0),
     "blender": (2, 83, 0),
     "location": "View3D",
-    "warning": "Still in development",
+    "warning": "Still experimental",
     "doc_url": "https://github.com/Pullusb/GP_magnet_strokes",
+    "tracker_url": "https://github.com/Pullusb/GP_magnet_strokes/issues",
     "category": "Object" }
 
 from . import brush_magnet
@@ -24,10 +25,13 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        # layout.use_property_split = True
+        layout.prop(context.scene.gp_magnetools, 'mgnt_near_layers_targets')
         layout.prop(context.scene.gp_magnetools, 'mgnt_material_targets')
         layout.prop(context.scene.gp_magnetools, 'mgnt_target_line_only')
         layout.prop(context.scene.gp_magnetools, 'mgnt_select_mask')
         layout.prop(context.scene.gp_magnetools, 'mgnt_snap_to_points')
+        layout.prop(context.scene.gp_magnetools, 'mgnt_display_ghosts')
 
         # layout.operator('gp.magnet_lines', text='Magnet lines', icon='SNAP_ON')
         ## call through 
@@ -40,6 +44,10 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
         row.operator('gp.magnet_lines_all', text='Magnet', icon='SNAP_ON')
 
 class MGNT_PGT_settings(bpy.types.PropertyGroup) :
+    mgnt_near_layers_targets : bpy.props.IntProperty(
+        name="Near Layers Target", description="Layers to target near active layer in stack\n(0 = all, 2 = two layers above, -1 = one layer below)\nBig values allow to target all above or all below",
+        default=100, soft_min=-2000, soft_max=2000, step=1, options={'HIDDEN'})
+
     mgnt_material_targets : bpy.props.StringProperty(
         name="Materials", description="Filter list of targeted materials for the magnet (coma separated names, not case sensitive)\n(e.g: 'line,Solid Black,fx')\nLeave empty to target all lines", default="")# update=None, get=None, set=None
     
@@ -58,6 +66,9 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
     mgnt_radius : bpy.props.IntProperty(name="Radius", 
     description="Radius of the brush\nUse [/], X/C, numpad -/+ or mousewheel down/up to modify during draw", 
     default=20, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
+
+    mgnt_display_ghosts : bpy.props.BoolProperty(
+        name="Display Position", description="Show the point position before magnet is applied to help repositionning", default=True, options={'HIDDEN'})
 
 
 addon_keymaps = []
@@ -105,12 +116,12 @@ def register():
         bpy.utils.register_class(cls)
     
     # if not bpy.app.background:
-    register_keymaps()
+    # register_keymaps()# testing keymap
     bpy.types.Scene.gp_magnetools = bpy.props.PointerProperty(type = MGNT_PGT_settings)
 
 def unregister():
     # if not bpy.app.background:
-    unregister_keymaps()
+    # unregister_keymaps()# testing keymap
     brush_magnet.unregister()
     basic_magnet.unregister()
     ops_magnet.unregister()
