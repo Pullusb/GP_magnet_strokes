@@ -2,7 +2,7 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (2, 0, 0),
+    "version": (2, 0, 1),
     "blender": (2, 83, 0),
     "location": "View3D",
     "warning": "Still experimental",
@@ -18,7 +18,7 @@ import bpy
 
 
 class GPMGT_PT_magnet_panel(bpy.types.Panel):
-    bl_label = "Magnet line"
+    bl_label = "Magnet Strokes"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Gpencil"
@@ -61,11 +61,11 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
         name="Snap to points", description="Snap on points instead of lines (Better performance)", default=False, options={'HIDDEN'})#options={'ANIMATABLE'},subtype='NONE', update=None, get=None, set=None
 
     mgnt_tolerance : bpy.props.IntProperty(
-        name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=25, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
+        name="Magnet Distance", description="Area of effect of the magnet (radius around point in pixel value)", default=100, min=1, max=2**31-1, soft_min=1, soft_max=2**31-1, step=1, subtype='PIXEL', options={'HIDDEN'})
     
     mgnt_radius : bpy.props.IntProperty(name="Radius", 
     description="Radius of the brush\nUse [/], X/C, numpad -/+ or mousewheel down/up to modify during draw", 
-    default=20, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
+    default=50, min=1, max=500, soft_min=0, soft_max=300, step=1)#, options={'HIDDEN'}#subtype = 'PIXEL' ?
 
     mgnt_display_ghosts : bpy.props.BoolProperty(
         name="Display Position", description="Show the point position before magnet is applied to help repositionning", default=True, options={'HIDDEN'})

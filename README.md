@@ -4,7 +4,7 @@ Magnet selected Grease pencil points to lines on other layers
 
 **[Download latest](https://github.com/Pullusb/GP_magnet_strokes/archive/master.zip)**
 
-<!-- ### [Demo Youtube]() -->
+### [Tuto/Demo Youtube](https://youtu.be/_MZjbfNJqdQ)
 
 Want to support me coding free tools ? [Check this page](http://www.samuelbernou.fr/donate)
 
@@ -74,6 +74,11 @@ It perform an auto reprojection at the end of the edit according to your current
 ---
 
 ## Changelog:
+
+2.0.1:
+
+- UI: changed panel name
+- doc: youtube link
 
 2.0.0:
 - performance: deleted old _sticky_ condition from V1
