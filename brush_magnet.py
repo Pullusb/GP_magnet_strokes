@@ -306,9 +306,9 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
 
                 if event.type == 'LEFTMOUSE':
                     if self.resize_magnet:
-                        context.scene.gp_magnetools.mgnt_tolerance = self.scene_tol_radius = self.tolerance
+                        context.scene.gp_magnetools.mgnt_tolerance = self.scene_tol_radius = int(self.tolerance)
                     else:
-                        context.scene.gp_magnetools.mgnt_radius = self.pen_radius = self.scene_brush_radius = self.pen_radius_diplay
+                        context.scene.gp_magnetools.mgnt_radius = self.pen_radius = self.scene_brush_radius = int(self.pen_radius_diplay)
 
                     self.brush_sizing = False
         
