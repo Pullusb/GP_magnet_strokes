@@ -85,3 +85,9 @@ def get_gp_draw_plane(context):
         plane_no.rotate(context.scene.cursor.matrix)
     
     return plane_co, plane_no
+
+
+def get_material_ids(materials):
+    settings = bpy.context.scene.gp_magnetools
+    material_targets = [name.lower().strip(' ,') for name in settings.mgnt_material_targets.split(',')]
+    return [i for i, m in enumerate(materials) if m.name.lower() in material_targets]

@@ -75,6 +75,11 @@ It perform an auto reprojection at the end of the edit according to your current
 
 ## Changelog:
 
+2.1.0
+
+- feat: magnet in 3D space to fit underline fills to line (experimental Alpha)
+- fix: Compatibility with blender 3.3+
+
 2.0.1:
 
 - UI: changed panel name
