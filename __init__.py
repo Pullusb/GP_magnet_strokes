@@ -58,6 +58,8 @@ class GPMGT_PT_magnet_3d_panel(bpy.types.Panel):
 
         # layout.prop(context.scene.gp_magnetools, 'mgnt_3d_distance')
         # layout.prop(context.scene.gp_magnetools, 'mgnt_3d_snap_under_line')
+
+        layout.prop(context.scene.gp_magnetools, 'mgnt_3d_layer_prefix_filter')
         layout.prop(context.scene.gp_magnetools, 'mgnt_3d_under_line_margin')
 
         layout.operator('gp.magnet_by_3d_distance', text='Magnet 3D', icon='SNAP_ON')
@@ -117,7 +119,12 @@ class MGNT_PGT_settings(bpy.types.PropertyGroup) :
     mgnt_3d_under_line_margin : bpy.props.FloatProperty(
         name="Line Virtual Margin",
         description="add a margin to the line (as a percentage value)",
-        default=0, min=0, soft_max=100, subtype='PERCENTAGE', options={'HIDDEN'})
+        default=0, min=-100, soft_max=100, subtype='PERCENTAGE', options={'HIDDEN'})
+    
+    mgnt_3d_layer_prefix_filter : bpy.props.StringProperty(
+        name="Only prefixes",
+        default='CO_,',
+        description="Only magnet layers with prefix", options={'HIDDEN'})
 
 
 

@@ -19,8 +19,13 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
     def execute(self, context):
         t0 = time()
         ## For now, snap all fills to lines !
+        settings = bpy.context.scene.gp_magnetools
+        prefixes = []
+        if settings.mgnt_3d_layer_prefix_filter.strip():
+            prefixes = [p.strip() for p in settings.mgnt_3d_layer_prefix_filter.split(',') if p != '']
+            print('prefixes: ', prefixes)
 
-        factor = 1 + bpy.context.scene.gp_magnetools.mgnt_3d_under_line_margin / 100
+        factor = 1 + settings.mgnt_3d_under_line_margin / 100
         # objs = [o for o in context.scene.objects if o.type == 'GPENCIL']
         objs = [context.object]
 
@@ -32,6 +37,10 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
 
             gpl = O.data.layers
             for L in gpl:
+                if prefixes and not any((L.info.startswith(x) for x in prefixes)):
+                    print(f'Skip {L.info} (prefix filter)')
+                    continue
+
                 print(L.info)
                 ## pre filter with prefix ;)
                 # if not L.info.startswith('CO_'):continue
@@ -64,8 +73,12 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
                             pt.co = co
                 '''
                 ### Line algo (Way more robust)
-                line_points = []
                 for F in L.frames:
+                    line_points = []
+                    ## Only in range
+                    if not context.scene.frame_start <= F.frame_number <= context.scene.frame_end:
+                        continue
+
                     # Gather all visible strokes on this frame
                     for lay in [l for l in gpl if not l.hide and not l == L]:
                         # print('- ', lay.info)
@@ -87,7 +100,9 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
 
                     if not line_points:
                         continue
-                    print(f'{len(line_points)} strokes to evaluate')
+                    
+                    print(f'{F.frame_number}: {len(F.strokes)} strokes, {len(line_points)} lines to evaluate')
+                    t1=time()
                     for S in F.strokes:
                         for pt in S.points:
                             co = check_proximity_to_lines(pt.co, line_points)
@@ -95,7 +110,9 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
                                 continue
                             pt.co = co
 
-        print(f'Elapsed{time() - t0:.2f}s')
+                    print(f'Solution {time() - t1:.2f}s')
+
+        print(f'\nElapsed: {time() - t0:.2f}s')
         #self.autoclean(context)
         self.report({'INFO'}, "Magnet 3D applyed")
         return {'FINISHED'}
