@@ -2,8 +2,8 @@ bl_info = {
     "name": "GP magnet strokes",
     "description": "Magnet a fill stroke on a line with designated material",
     "author": "Samuel Bernou",
-    "version": (2, 1, 0),
-    "blender": (2, 83, 0),
+    "version": (3, 0, 0),
+    "blender": (4, 0, 0),
     "location": "View3D",
     "warning": "Still experimental",
     "doc_url": "https://github.com/Pullusb/GP_magnet_strokes",
@@ -41,7 +41,7 @@ class GPMGT_PT_magnet_panel(bpy.types.Panel):
         row.prop(context.scene.gp_magnetools, 'mgnt_radius', text='Brush Size')
         row.prop(context.scene.gp_magnetools, 'mgnt_tolerance')# text='Magnet radius'
         row = layout.row()
-        row.operator('gp.magnet_brush', text='Magnet Brush', icon='SNAP_ON')
+        row.operator('gpencil.magnet_brush', text='Magnet Brush', icon='SNAP_ON')
         row.operator('gp.magnet_lines_all', text='Magnet', icon='SNAP_ON')
 
 class GPMGT_PT_magnet_3d_panel(bpy.types.Panel):
@@ -145,17 +145,13 @@ def register_keymaps():
     #     )
 
     km = addon.keymaps.new(name = "Grease Pencil", space_type = "EMPTY", region_type='WINDOW')
-    km.keymap_items.new('gp.magnet_brush', type='F5', value='PRESS')
-    addon_keymaps.append(km)
+    kmi = km.keymap_items.new('gpencil.magnet_brush', type='F5', value='PRESS')
+    addon_keymaps.append((km, kmi))
     
 
-
 def unregister_keymaps():
-    wm = bpy.context.window_manager
-    for km in addon_keymaps:
-        for kmi in km.keymap_items:
-            km.keymap_items.remove(kmi)
-        wm.keyconfigs.addon.keymaps.remove(km)
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
     addon_keymaps.clear()
 
 ### --- REGISTER ---

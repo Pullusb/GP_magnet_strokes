@@ -7,7 +7,6 @@ import math
 
 import numpy as np
 import gpu
-import bgl
 import blf
 
 from time import time
@@ -41,10 +40,11 @@ def circle_2d(coord, r, num_segments):
 
 def draw_callback_px(self, context):
     # 50% alpha, 2 pixel width line
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-    bgl.glEnable(bgl.GL_BLEND)
-    bgl.glLineWidth(2)
-    bgl.glPointSize(3)
+    shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+    gpu.state.blend_set('ALPHA')
+    gpu.state.line_width_set(2.0)
+    gpu.state.program_point_size_set(False)
+    gpu.state.point_size_set(3)
 
     ## magnet area display (may induce error since it's really radius from point, not from mouse ...)
     paint_widget = circle_2d(self.mouse, self.tolerance, self.crosshair_resolution)#optimisation ?
@@ -66,14 +66,15 @@ def draw_callback_px(self, context):
 
     # restore opengl defaults
     bgl.glLineWidth(1)
-    bgl.glDisable(bgl.GL_BLEND)
+    gpu.state.blend_set('NONE')
 
 def draw_callback_px_with_points(self, context):
     # 50% alpha, 2 pixel width line
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')
-    bgl.glEnable(bgl.GL_BLEND)
-    bgl.glLineWidth(2)
-    bgl.glPointSize(3)
+    shader = gpu.shader.from_builtin('UNIFORM_COLOR')
+    gpu.state.blend_set('ALPHA')
+    gpu.state.line_width_set(2.0)
+    gpu.state.program_point_size_set(False)
+    gpu.state.point_size_set(3)
 
     ## magnet area display (may induce error since it's really radius from point, not from mouse ...)
     paint_widget = circle_2d(self.mouse, self.tolerance, self.crosshair_resolution)#optimisation ?
@@ -103,8 +104,8 @@ def draw_callback_px_with_points(self, context):
     
 
     # restore opengl defaults
-    bgl.glLineWidth(1)
-    bgl.glDisable(bgl.GL_BLEND)
+    gpu.state.line_width_set(1.0)
+    gpu.state.blend_set('NONE')
 
     '''
     ## text
@@ -125,9 +126,9 @@ def draw_callback_px_with_points(self, context):
     blf.draw(font_id, f'Magnet - brush radius: {self.pen_radius_diplay} - tolerance radius: {self.tolerance}')
     '''
 
-class GPMGT_OT_magnet_brush(bpy.types.Operator):
+class GPENCIL_OT_magnet_brush(bpy.types.Operator):
     """Magnet fill strokes to line stroke with a brush"""
-    bl_idname = "gp.magnet_brush"
+    bl_idname = "gpencil.magnet_brush"
     bl_label = "Magnet Brush"
     bl_description = "Try to magnet grease pencil stroke to closest stroke in other layers"
     bl_options = {"REGISTER", "UNDO"}
@@ -662,12 +663,12 @@ class GPMGT_OT_magnet_brush(bpy.types.Operator):
 
 
 def register():
-    bpy.utils.register_class(GPMGT_OT_magnet_brush)
+    bpy.utils.register_class(GPENCIL_OT_magnet_brush)
     # for cls in classes:
         # bpy.utils.register_class(cls)
 
 
 def unregister():
-    bpy.utils.unregister_class(GPMGT_OT_magnet_brush)
+    bpy.utils.unregister_class(GPENCIL_OT_magnet_brush)
     # for cls in reversed(classes):
         # bpy.utils.unregister_class(cls)

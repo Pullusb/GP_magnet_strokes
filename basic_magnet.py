@@ -6,68 +6,12 @@ import mathutils
 from mathutils import Vector
 from math import sqrt
 from sys import platform
-from time import time#Dbg-time
-
-## modal import
-import gpu
-import bgl
-import blf
-from gpu_extras.batch import batch_for_shader
-
+from time import time
 
 ## TODO
 ### use points only ( brute force or with a kd_tree) ?
 # test a mode with points only (need to fuse overlapping strokes (if those are adjacent strokes ?))
 # Test in a modal operator, use a draw handler to show initial position to target position (As debug tool...)
-
-
-### ---- Modal operator
-
-
-# Simple exemple of event keypress handling and basic draw in modal ops with detection of ctrl/alt/shift modifiers
-# from gpu_extras.presets import draw_circle_2d
-"""
-def draw_callback_px(self, context):
-    '''Draw callback use by modal to draw in viewport'''
-    ## lines and shaders
-    # 50% alpha, 2 pixel width line
-    shader = gpu.shader.from_builtin('2D_UNIFORM_COLOR')#initiate shader
-    bgl.glEnable(bgl.GL_BLEND)
-    bgl.glLineWidth(2)
-
-    # Draw line showing mouse path
-    batch = batch_for_shader(shader, 'LINE_STRIP', {"pos": self.mouse_path})
-    shader.bind()
-    shader.uniform_float("color", (0.5, 0.5, 0.5, 0.5))#grey-light
-    batch.draw(shader)
-
-    # restore opengl defaults
-    bgl.glLineWidth(1)
-    bgl.glDisable(bgl.GL_BLEND)
-
-    ## text
-    font_id = 0
-
-    ## Show active modifier key (not necessary if you need performance)
-    if self.pressed_alt or self.pressed_shift or self.pressed_ctrl:
-        # print(f'mods: alt {self.pressed_alt} - shift {self.pressed_shift} - ctrl {self.pressed_ctrl}')
-        blf.position(font_id, self.mouse[0]+10, self.mouse[1]+10, 0)
-        blf.size(font_id, 30, 72)#Id, Point size of the font, dots per inch value to use for drawing.
-        if self.pressed_alt and self.pressed_shift:
-            blf.draw(font_id, 'x')
-        elif self.pressed_alt:
-            blf.draw(font_id, '-')
-        elif self.pressed_shift:
-            blf.draw(font_id, '+')
-        elif self.pressed_ctrl:
-            blf.draw(font_id, 'o')
-
-    ## Draw text debug infos
-    blf.position(font_id, 15, 30, 0)
-    blf.size(font_id, 20, 72)
-    blf.draw(font_id, f'Infos - mouse coord: {self.mouse} - mouse_steps: {len(self.mouse_path)}')
-
-"""
 
 class GPMGT_OT_magnet_gp_lines(bpy.types.Operator):
     """Magnet fill strokes to line stroke"""

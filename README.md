@@ -75,6 +75,11 @@ It perform an auto reprojection at the end of the edit according to your current
 
 ## Changelog:
 
+3.0.0
+
+- changed: compatible with blender 4.0+ (no longer compatible with previous version)
+- fixed: allow `add shortcut` on Magnet buttond in right-clic context menu
+
 2.1.0
 
 - feat: magnet in 3D space to fit underline fills to line (experimental Alpha)
