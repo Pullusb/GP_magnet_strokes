@@ -530,49 +530,50 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
 
         ## Get all 2D point position of targeted lines
         self.target_strokes = []
-        for l in tgt_layers:            
-            for s in l.active_frame.strokes:
-                
-                ## filter on specific material target
-                ## pass if no material targets defined
-                if mat_ids and not s.material_index in mat_ids:
-                    continue
-                
-                ## Get all type except fills
-                if target_line_only and materials[s.material_index].grease_pencil.show_fill:
-                    continue
-                
-                ## work only on selected strokes from other layers (usefull to magnet on specific strokes)
-                if select_mask and not s.select:
-                    continue
-                
-                ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
-                # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+        for l in tgt_layers:
+            try:
+                for s in l.active_frame.strokes:
 
-                tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
-                
-                ## visibility check (check all point in stroke)
-                # ok=False
-                # for p in tgt_2d_pts_list:
-                #     if area_x < p[0] < area_mx and area_y < p[1] < area_my:
-                #         ok=True
-                #         break
-                
-                ## visibility check Quick (checking only first and last point of stroke)
-                ok = area_x < tgt_2d_pts_list[0][0] < area_mx and area_y < tgt_2d_pts_list[0][1] < area_my\
-                    or area_x < tgt_2d_pts_list[-1][0] < area_mx and area_y < tgt_2d_pts_list[-1][1] < area_my
-                
-                if not ok:
-                    continue
+                    ## filter on specific material target
+                    ## pass if no material targets defined
+                    if mat_ids and not s.material_index in mat_ids:
+                        continue
 
-                self.target_strokes.append(tgt_2d_pts_list)
-                
-                ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
-                # for p in s.points:
-                #     self.target_points.append(p)
-                #     self.target_2d_co.append(location_to_region(self.matworld @ p.co))
-       
+                    ## Get all type except fills
+                    if target_line_only and materials[s.material_index].grease_pencil.show_fill:
+                        continue
 
+                    ## work only on selected strokes from other layers (usefull to magnet on specific strokes)
+                    if select_mask and not s.select:
+                        continue
+
+                    ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
+                    # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+
+                    tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
+
+                    ## visibility check (check all point in stroke)
+                    # ok=False
+                    # for p in tgt_2d_pts_list:
+                    #     if area_x < p[0] < area_mx and area_y < p[1] < area_my:
+                    #         ok=True
+                    #         break
+
+                    ## visibility check Quick (checking only first and last point of stroke)
+                    ok = area_x < tgt_2d_pts_list[0][0] < area_mx and area_y < tgt_2d_pts_list[0][1] < area_my\
+                        or area_x < tgt_2d_pts_list[-1][0] < area_mx and area_y < tgt_2d_pts_list[-1][1] < area_my
+
+                    if not ok:
+                        continue
+
+                    self.target_strokes.append(tgt_2d_pts_list)
+
+                    ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
+                    # for p in s.points:
+                    #     self.target_points.append(p)
+                    #     self.target_2d_co.append(location_to_region(self.matworld @ p.co))
+            except:
+                 continue
         # print(f'End target line infos get: {time() - start_init:.4f}s')#Dbg-time
         if not self.target_strokes:
             self.report({'ERROR'}, "No target strokes found")
