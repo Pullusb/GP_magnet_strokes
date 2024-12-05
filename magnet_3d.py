@@ -14,7 +14,7 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
 
     # @classmethod
     # def poll(cls, context):
-    #     return context.object is not None and context.object.type == 'GPENCIL'
+    #     return context.object is not None and context.object.type == 'GREASEPENCIL'
     
     def execute(self, context):
         t0 = time()
@@ -26,7 +26,7 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
             print('prefixes: ', prefixes)
 
         factor = 1 + settings.mgnt_3d_under_line_margin / 100
-        # objs = [o for o in context.scene.objects if o.type == 'GPENCIL']
+        # objs = [o for o in context.scene.objects if o.type == 'GREASEPENCIL']
         objs = [context.object]
 
         for O in objs:
@@ -37,13 +37,13 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
 
             gpl = O.data.layers
             for L in gpl:
-                if prefixes and not any((L.info.startswith(x) for x in prefixes)):
-                    print(f'Skip {L.info} (prefix filter)')
+                if prefixes and not any((L.name.startswith(x) for x in prefixes)):
+                    print(f'Skip {L.name} (prefix filter)')
                     continue
 
-                print(L.info)
+                print(L.name)
                 ## pre filter with prefix ;)
-                # if not L.info.startswith('CO_'):continue
+                # if not L.name.startswith('CO_'):continue
 
                 ### Point algo
                 '''
@@ -55,22 +55,22 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
                         frame = next((f for f in lay.frames if f.frame_number == F.frame_number), None)
                         if not frame:
                             continue
-                        for s in frame.strokes:
+                        for s in frame.drawing.strokes:
                             if s.material_index not in ids:
                                 continue
                             # divided by two because we want radius not diameter
-                            line_points += [(p.co, p.pressure * (s.line_width / 2) / 1000) for p in s.points]
+                            line_points += [(p.position, p.pressure * (s.line_width / 2) / 1000) for p in s.points]
 
                     Thicknesses = [i[1] for i in line_points]
                     print('Thicknesses', min(Thicknesses), max(Thicknesses))
-                    for S in F.strokes:
+                    for S in F.drawing.strokes:
                         for pt in S.points:
                             # Search with a kdTree.
-                            co, index, dist = find_vec_in_vecs(pt.co, line_points)
+                            co, index, dist = find_vec_in_vecs(pt.position, line_points)
                             if dist > line_points[index][1]:
                                 continue
                             # print(dist, '<', line_points[index][1])
-                            pt.co = co
+                            pt.position = co
                 '''
                 ### Line algo (Way more robust)
                 for F in L.frames:
@@ -81,34 +81,34 @@ class GPMGT_OT_magnet_by_3d_distance(bpy.types.Operator):
 
                     # Gather all visible strokes on this frame
                     for lay in [l for l in gpl if not l.hide and not l == L]:
-                        # print('- ', lay.info)
+                        # print('- ', lay.name)
 
                         ## find same frame (TODO: should use a past frames if not exact same num)
                         frame = next((f for f in lay.frames if f.frame_number == F.frame_number), None)
                         if not frame:
                             continue
-                        for s in frame.strokes:
+                        for s in frame.drawing.strokes:
                             if s.material_index not in ids:
                                 continue
                             
                             ## pressure: line_width / 2 (radius) multiplied by pressure, all divided by 1000 to get bl_unit
                             # Sublist instead of extend
-                            # line_points.append([(p.co, p.pressure * (s.line_width / 2) / 1000) for p in s.points])
+                            # line_points.append([(p.position, p.pressure * (s.line_width / 2) / 1000) for p in s.points])
                             
                             ## with factor
-                            line_points.append([(p.co, (p.pressure * (s.line_width / 2) / 1000) * factor) for p in s.points])
+                            line_points.append([(p.position, (p.pressure * (s.line_width / 2) / 1000) * factor) for p in s.points])
 
                     if not line_points:
                         continue
                     
-                    print(f'{F.frame_number}: {len(F.strokes)} strokes, {len(line_points)} lines to evaluate')
+                    print(f'{F.frame_number}: {len(F.drawing.strokes)} strokes, {len(line_points)} lines to evaluate')
                     t1=time()
-                    for S in F.strokes:
+                    for S in F.drawing.strokes:
                         for pt in S.points:
-                            co = check_proximity_to_lines(pt.co, line_points)
+                            co = check_proximity_to_lines(pt.position, line_points)
                             if not co:
                                 continue
-                            pt.co = co
+                            pt.position = co
 
                     print(f'Solution {time() - t1:.2f}s')
 
@@ -200,7 +200,7 @@ def create_balls():
     if not bpy.context.object:
         print('Nothing active')
         return
-    s = next((s for s in bpy.context.object.data.layers.active.active_frame.strokes if s.select), None)
+    s = next((s for s in bpy.context.object.data.layers.active.current_frame().drawing.strokes if s.select), None)
     if not s:
         print('no stroke selected in active frame of active layer')
         return
@@ -209,7 +209,7 @@ def create_balls():
             radius = p.pressure * (s.line_width / 2) / 1000
             radius = radius + radius * factor
             # print('radius:', radius)
-            create_sphere(p.co, radius)
+            create_sphere(p.position, radius)
 
 class GPMGT_OT_test_radius(bpy.types.Operator):
     bl_idname = "gp.test_radius"

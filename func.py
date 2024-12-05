@@ -91,3 +91,42 @@ def get_material_ids(materials):
     settings = bpy.context.scene.gp_magnetools
     material_targets = [name.lower().strip(' ,') for name in settings.mgnt_material_targets.split(',')]
     return [i for i, m in enumerate(materials) if m.name.lower() in material_targets]
+
+
+# -----------------
+### GP utils
+# -----------------
+
+
+def layer_active_index(gpl):
+    '''Get layer list and return index of active layer
+    Can return None if no active layer found (active item can be a group)
+    '''
+    return next((i for i, l in enumerate(gpl) if l == gpl.active), None)
+
+def get_top_layer_from_group(gp, group):
+    upper_layer = None
+    for layer in gp.layers:
+        if layer.parent_group == group:
+            upper_layer = layer
+    return upper_layer
+
+def get_closest_active_layer(gp):
+    '''Get active layer from GP object, getting upper layer if in group
+    if a group is active, return the top layer of this group
+    if group is active but no layer in it, return None
+    '''
+
+    if gp.layers.active:
+        return gp.layers.active
+    ## No active layer, return active from group (can be None !)
+    return get_top_layer_from_group(gp, gp.layer_groups.active)
+
+def closest_layer_active_index(gp, fallback_index=0):
+    '''Get active layer index from GP object, getting upper layer if in group
+    if a group is active, return index at the top layer of this group
+    if group is active but no layer in it, return fallback_index (0 by default, stack bottom)'''
+    closest_active_layer = get_closest_active_layer(gp)
+    if closest_active_layer:
+        return next((i for i, l in enumerate(gp.layers) if l == closest_active_layer), fallback_index)
+    return fallback_index

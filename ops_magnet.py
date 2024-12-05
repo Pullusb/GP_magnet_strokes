@@ -1,3 +1,4 @@
+from . import func
 from .func import *
 
 import bpy
@@ -14,7 +15,7 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object is not None and context.object.type == 'GPENCIL'
+        return context.object is not None and context.object.type == 'GREASEPENCIL'
 
     point_snap : bpy.props.BoolProperty(
         name="Snap to points", description="Snap on points instead of lines (Better performance)", 
@@ -47,7 +48,7 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
                         res = pos
                         prevdist = dist
 
-            self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+            self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)
 
     def compute_proximity_magnet(self, context):
         # self.target_strokes # list of pointlists 2d [[p,p][p,p,p]]
@@ -79,9 +80,9 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
             ## Use a proximity a snap with tolerance:
             if prevdist <= self.tolerance:
                 #res is 2d, need 3d coord
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)
             else:
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
 
     def compute_point_proximity_magnet(self, context):
@@ -101,23 +102,23 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
             ## Use a proximity a snap with tolerance:
             if prevdist <= self.tolerance:
                 #res is 2d, need 3d coord
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)
             else:
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
     def autoclean(self, context):
         ct = 0
         # passed_coords = [] # here means point overlap check across strokes...
-        for s in reversed([s for s in context.object.data.layers.active.active_frame.strokes if s.select]):
+        for s in reversed([s for s in context.object.data.layers.active.current_frame().drawing.strokes if s.select]):
             passed_coords = []# per stroke analysis
             double_list = []
             for i, p in enumerate(s.points):
                 if not p.select or not p in self.mv_points:
                     continue
-                if p.co in passed_coords:
+                if p.position in passed_coords:
                     double_list.append(i)
                     continue
-                passed_coords.append(p.co)
+                passed_coords.append(p.position)
                         
             for i in reversed(double_list):
                 s.points.pop(index=i)
@@ -134,7 +135,7 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
 
         ## depth correction
         for p in self.mv_points:
-            p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
+            p.position = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.position, self.plane_co, self.plane_no)
         
         self.autoclean(context)
         self.report({'INFO'}, "Magnet applyed")
@@ -203,16 +204,17 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
             self.report({'ERROR'}, f"No active layers on GP object")
             return {'CANCELLED'}
 
+        active_index = func.closest_layer_active_index(ob.data)
         ## target layers        
         extend = settings.mgnt_near_layers_targets
         if extend < 0:
-            tgts = [l for i, l in enumerate(gpl) if gpl.active_index > i >=  gpl.active_index + extend]
+            tgts = [l for i, l in enumerate(gpl) if active_index > i >=  active_index + extend]
         
         elif extend > 0:
-            tgts = [l for i, l in enumerate(gpl) if gpl.active_index < i <=  gpl.active_index + extend]
+            tgts = [l for i, l in enumerate(gpl) if active_index < i <=  active_index + extend]
         
         else:# extend == 0
-            tgts = [l for i, l in enumerate(gpl) if i != gpl.active_index]
+            tgts = [l for i, l in enumerate(gpl) if i != active_index]
 
         tgt_layers = [l for l in tgts if not l.hide] # and l != gpl.active
         
@@ -220,13 +222,13 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
             self.report({'ERROR'}, f"No layers targeted, Check filters (Note: can only other layers than active)")
             return {'CANCELLED'}
 
-        # all_strokes = [s for l in tgt_layers for s in l.active_frame.strokes if s.material_index in mat_ids]
-        # self.target_strokes = [[(p, location_to_region(self.matworld @ p.co)) for p in s.points] for s in all_strokes]
+        # all_strokes = [s for l in tgt_layers for s in l.current_frame().drawing.strokes if s.material_index in mat_ids]
+        # self.target_strokes = [[(p, location_to_region(self.matworld @ p.position)) for p in s.points] for s in all_strokes]
         
         ## Get all 2D point position of targeted lines
         self.target_strokes = []
         for l in tgt_layers:            
-            for s in l.active_frame.strokes:
+            for s in l.current_frame().drawing.strokes:
                 
                 ## filter on specific material target
                 ## pass if no material targets defined
@@ -242,9 +244,9 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
                     continue
 
                 ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
-                # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+                # self.target_strokes.append([location_to_region(self.matworld @ p.position) for p in s.points])
 
-                tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
+                tgt_2d_pts_list = [location_to_region(self.matworld @ p.position) for p in s.points]
                 
                 ## visibility check (check all point in stroke)
                 # ok=False
@@ -265,7 +267,7 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
                 ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
                 # for p in s.points:
                 #     self.target_points.append(p)
-                #     self.target_2d_co.append(location_to_region(self.matworld @ p.co))
+                #     self.target_2d_co.append(location_to_region(self.matworld @ p.position))
        
 
         # print(f'End target line infos get: {time() - start_init:.4f}s')#Dbg-time
@@ -277,10 +279,10 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
         ## store moving points
         self.mv_points = []
         # Work on last stroke hwne in paint mode
-        if context.mode == 'PAINT_GPENCIL':
-            self.mv_points = [p for p in gpl.active.active_frame.strokes[get_last_index(context)].points]
+        if context.mode == 'PAINT_GREASE_PENCIL':
+            self.mv_points = [p for p in gpl.active.current_frame().drawing.strokes[get_last_index(context)].points]
         else:
-            org_strokes = [s for s in gpl.active.active_frame.strokes if s.select]
+            org_strokes = [s for s in gpl.active.current_frame().drawing.strokes if s.select]
 
             for s in org_strokes:
                 ## source stroke filter
@@ -297,8 +299,8 @@ class GPMGT_OT_magnet_gp_lines_all(bpy.types.Operator):
             return {'CANCELLED'}
 
         ## store initial position of moving_strokes
-        self.org_pos = [Vector(p.co[:]) for p in self.mv_points]## need a copy (or [:]) !!! else it follow point coordinate as it changes !
-        self.pos_2d = [location_to_region(self.matworld @ p.co) for p in self.mv_points]
+        self.org_pos = [Vector(p.position[:]) for p in self.mv_points]## need a copy (or [:]) !!! else it follow point coordinate as it changes !
+        self.pos_2d = [location_to_region(self.matworld @ p.position) for p in self.mv_points]
 
         self.initial_pos_2d = self.pos_2d.copy()
         

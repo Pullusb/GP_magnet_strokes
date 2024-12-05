@@ -2,7 +2,9 @@
 
 Magnet selected Grease pencil points to lines on other layers
 
-**[Download latest](https://github.com/Pullusb/GP_magnet_strokes/archive/master.zip)**
+**[Download latest (Blender 4.3+)](https://github.com/Pullusb/GP_magnet_strokes/archive/master.zip)**
+
+**[Download latest for Blender 4.2 and below](https://github.com/Pullusb/GP_magnet_strokes/releases/download/v3.0.0/GP_magnet_strokes-v3_0_0.zip)**
 
 ### [Tuto/Demo Youtube](https://youtu.be/_MZjbfNJqdQ)
 

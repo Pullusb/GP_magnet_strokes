@@ -1,5 +1,5 @@
+from . import func
 from .func import *
-
 import bpy
 from mathutils import Vector, Matrix
 from mathutils import geometry
@@ -135,7 +135,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context):
-        return context.object is not None and context.object.type == 'GPENCIL'
+        return context.object is not None and context.object.type == 'GREASEPENCIL'
 
     pressed_key = 'NOTHING'
 
@@ -171,9 +171,9 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
             ## Use a proximity a snap with tolerance:
             if prevdist <= self.tolerance:
                 #res is 2d, need 3d coord
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)
             else:
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
     def compute_point_proximity_magnet(self, context):
         '''To point directly (faster)'''
@@ -194,9 +194,9 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
             ## Use a proximity a snap with tolerance:
             if prevdist <= self.tolerance:
                 #res is 2d, need 3d coord
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)
             else:
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
     ## unused
     def compute_proximity_sticky_magnet(self, context, stick=False):
@@ -222,15 +222,15 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
                         prevdist = dist
 
             if self.sticked[j]: # use sticked coord
-                self.mv_points[j].co = self.sticked[j]
+                self.mv_points[j].position = self.sticked[j]
 
             elif prevdist <= self.tolerance:# magnet
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)# res is 2d, need 3d coord
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)# res is 2d, need 3d coord
                 if stick: #via event.ctrl
                     self.sticked[j] = self.matworld.inverted() @ region_to_location(res, self.depth)
 
             else:# keep following cursor
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
     ## unused
     def compute_point_proximity_sticky_magnet(self, context, stick=False):
         '''Sticky version to point directly'''
@@ -248,30 +248,30 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
                         prevdist = dist
 
             if self.sticked[j]: # use sticked coord
-                self.mv_points[j].co = self.sticked[j]
+                self.mv_points[j].position = self.sticked[j]
 
             elif prevdist <= self.tolerance:# magnet
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(res, self.depth)# res is 2d, need 3d coord
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(res, self.depth)# res is 2d, need 3d coord
                 if stick: #via event.ctrl
                     self.sticked[j] = self.matworld.inverted() @ region_to_location(res, self.depth)
 
             else:# keep following cursor
-                self.mv_points[j].co = self.matworld.inverted() @ region_to_location(mp, self.depth)
+                self.mv_points[j].position = self.matworld.inverted() @ region_to_location(mp, self.depth)
 
 
     def autoclean(self, context):
         ct = 0
         # passed_coords = [] # here means point overlap check across strokes...
-        for s in reversed([s for s in context.object.data.layers.active.active_frame.strokes if s.select]):
+        for s in reversed([s for s in context.object.data.layers.active.current_frame().drawing.strokes if s.select]):
             passed_coords = []# per stroke analysis
             double_list = []
             for i, p in enumerate(s.points):
                 if not p.select or not p in self.mv_points:
                     continue
-                if p.co in passed_coords:
+                if p.position in passed_coords:
                     double_list.append(i)
                     continue
-                passed_coords.append(p.co)
+                passed_coords.append(p.position)
                         
             for i in reversed(double_list):
                 s.points.pop(index=i)
@@ -408,7 +408,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
             
             ## depth correction
             for i, p in enumerate(self.mv_points):
-                p.co = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.co, self.plane_co, self.plane_no)
+                p.position = self.matworld.inverted() @ mathutils.geometry.intersect_line_plane(self.view_co, self.matworld @ p.position, self.plane_co, self.plane_no)
 
             ## autoclean overlapping vertices
             self.autoclean(context)
@@ -420,7 +420,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
         if event.type in {'RIGHTMOUSE', 'ESC'}:
             self.stop_modal(context)
             for i, p in enumerate(self.mv_points):
-                p.co = self.org_pos[i]
+                p.position = self.org_pos[i]
             self.report({'WARNING'}, "Cancelled")
             return {'CANCELLED'}
 
@@ -462,7 +462,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
         
 
         ## resample on the fly - BUT select all the line... (kill selection) add it as separate.
-        # bpy.ops.gpencil.stroke_sample(length=0.04)
+        # bpy.ops.grease_pencil.stroke_sample(length=0.04)
 
 
         ## get projection plane (to reproject upon confirm)
@@ -513,14 +513,17 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
         
         ## target layers 
         extend = settings.mgnt_near_layers_targets
+
+        active_index = func.closest_layer_active_index(ob.data)
+
         if extend < 0:
-            tgts = [l for i, l in enumerate(gpl) if gpl.active_index > i >=  gpl.active_index + extend]
+            tgts = [l for i, l in enumerate(gpl) if active_index > i >=  active_index + extend]
         
         elif extend > 0:
-            tgts = [l for i, l in enumerate(gpl) if gpl.active_index < i <=  gpl.active_index + extend]
+            tgts = [l for i, l in enumerate(gpl) if active_index < i <=  active_index + extend]
         
         else:# extend == 0
-            tgts = [l for i, l in enumerate(gpl) if i != gpl.active_index]
+            tgts = [l for i, l in enumerate(gpl) if i != active_index]
 
         tgt_layers = [l for l in tgts if not l.hide] # and l != gpl.active
         
@@ -531,7 +534,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
         ## Get all 2D point position of targeted lines
         self.target_strokes = []
         for l in tgt_layers:            
-            for s in l.active_frame.strokes:
+            for s in l.current_frame().drawing.strokes:
                 
                 ## filter on specific material target
                 ## pass if no material targets defined
@@ -547,9 +550,9 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
                     continue
                 
                 ## direct append (if no need to check coordinates against placement in view (or kdtree in the future))
-                # self.target_strokes.append([location_to_region(self.matworld @ p.co) for p in s.points])
+                # self.target_strokes.append([location_to_region(self.matworld @ p.position) for p in s.points])
 
-                tgt_2d_pts_list = [location_to_region(self.matworld @ p.co) for p in s.points]
+                tgt_2d_pts_list = [location_to_region(self.matworld @ p.position) for p in s.points]
                 
                 ## visibility check (check all point in stroke)
                 # ok=False
@@ -570,7 +573,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
                 ##### POINT MODE: All mixed points pairs (valid for direct point search, dont take strokes gap for line search) 
                 # for p in s.points:
                 #     self.target_points.append(p)
-                #     self.target_2d_co.append(location_to_region(self.matworld @ p.co))
+                #     self.target_2d_co.append(location_to_region(self.matworld @ p.position))
        
 
         # print(f'End target line infos get: {time() - start_init:.4f}s')#Dbg-time
@@ -582,16 +585,17 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
 
         ## store moving points
 
-        if not len(gpl.active.active_frame.strokes):
+        if not len(gpl.active.current_frame().drawing.strokes):
             self.report({'ERROR'}, "No strokes on active layer")
             return {'CANCELLED'}
             
         self.mv_points = []
         # Work on last stroke hwne in paint mode
-        if context.mode == 'PAINT_GPENCIL':
-            self.mv_points = [p for p in gpl.active.active_frame.strokes[get_last_index(context)].points]
+        if context.mode == 'PAINT_GREASE_PENCIL':
+            self.mv_points = [p for p in gpl.active.current_frame().drawing.strokes[get_last_index(context)].points]
         else:
-            org_strokes = [s for s in gpl.active.active_frame.strokes if s.select]
+            org_strokes = [s for s in gpl.active.current_frame().drawing.strokes if s.select]
+            print('org_strokes: ', org_strokes)
 
             for s in org_strokes:
                 ## source stroke filter
@@ -608,8 +612,8 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
             return {'CANCELLED'}
 
         ## store initial position of moving_strokes
-        self.org_pos = [Vector(p.co[:]) for p in self.mv_points]## need a copy (or [:]) !!! else it follow point coordinate as it changes !
-        self.pos_2d = [location_to_region(self.matworld @ p.co) for p in self.mv_points]
+        self.org_pos = [Vector(p.position[:]) for p in self.mv_points]## need a copy (or [:]) !!! else it follow point coordinate as it changes !
+        self.pos_2d = [location_to_region(self.matworld @ p.position) for p in self.mv_points]
 
         self.initial_pos_2d = self.pos_2d.copy()
         
@@ -639,7 +643,7 @@ class GPENCIL_OT_magnet_brush(bpy.types.Operator):
             display_text += f' Materials targets: "{"|".join(material_targets)}" |'
         
         if settings.mgnt_near_layers_targets != 0:
-            display_text += f' Layers targets: "{"|".join([l.info for l in tgt_layers])}" |'
+            display_text += f' Layers targets: "{"|".join([l.name for l in tgt_layers])}" |'
 
         ## Brush settings
         self.brush_sizing = False
